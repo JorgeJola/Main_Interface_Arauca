@@ -18,6 +18,10 @@ from sklearn.preprocessing import StandardScaler
 import pandas as pd
 from rasterio.mask import mask
 from shapely.geometry import shape
+import matplotlib.pyplot as plt
+matplotlib.use('Agg')
+import seaborn as sns
+import folium
 
 main=Blueprint('main',__name__)
 UPLOAD_FOLDER = tempfile.mkdtemp()
