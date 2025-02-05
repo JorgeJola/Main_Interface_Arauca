@@ -1,0 +1,86 @@
+{% extends "base2.html" %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+  .input-group {
+    position: fixed;
+    top: 50px;
+    right: 20px;
+    width: 20%;
+    background: #f4f4f4;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+  #raster-container {
+    margin-right: 25%;
+    padding: 20px;
+  }
+  #mapid {
+    height: 500px;
+  }
+</style>
+<script>
+  function updateRaster() {
+    var year = document.getElementById("yearRange").value;
+    var municipality = document.getElementById("municipalitySelect").value;
+    
+    // Update the iframe source based on the selected year and municipality
+    var iframeSrc = '{{ url_for("static", filename="rasters/") }}' + municipality + '/' + year + '/map.html';
+    document.getElementById("mapFrame").src = iframeSrc;
+
+    // Enable download button and update download link
+    var downloadButton = document.getElementById("downloadBtn");
+    downloadButton.disabled = false;
+    downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';  // Cambio aquí
+  }
+
+  // Update year value in the label dynamically
+  function updateYear(year) {
+      document.getElementById("yearValue").innerText = year;
+      var municipality = document.getElementById("municipalitySelect").value;
+      var iframeSrc = `{{ url_for('static', filename='') }}rasters/${municipality}/${year}.html`;
+      document.getElementById("mapFrame").src = iframeSrc;
+
+      // Update download link dynamically
+      var downloadButton = document.getElementById("downloadBtn");
+      downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';  // Cambio aquí
+  }
+</script>
+{% endblock %}
+
+{% block content %}
+{{ super() }}
+<div class="input-group">
+  <label for="yearRange">Choose a year: <span id="yearValue">1990</span></label>
+  <input
+    type="range"
+    id="yearRange"
+    min="1990"
+    max="2020"
+    value="1990"
+    step="5"
+    oninput="updateYear(this.value)"
+  />
+  
+  <label for="municipalitySelect">Choose a municipality:</label>
+  <select id="municipalitySelect" onchange="updateRaster()">
+    <option value="Arauca">Arauca</option>
+    <option value="Arauquita">Arauquita</option>
+    <option value="Cravo_Norte">Cravo_Norte</option>
+    <option value="Puerto">Puerto</option>
+    <option value="Tame">Tame</option>
+    <option value="Saravena">Saravena</option>
+    <option value="Fortul">Fortul</option>
+  </select>
+
+  <br /><br />
+  <a id="downloadBtn" href="#" class="btn btn-primary" disabled>Download Raster</a>
+</div>
+<div style="width: 100%; height: 600px;">
+  <iframe id="mapFrame" src="{{ url_for('static', filename='rasters/Arauca/1990.html') }}" 
+          width="100%" height="130%" frameborder="0"></iframe>
+</div>
+{% endblock %}
