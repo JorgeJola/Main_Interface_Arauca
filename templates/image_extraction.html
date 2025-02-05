@@ -23,30 +23,25 @@
   }
 </style>
 <script>
+  // Esta función actualiza tanto el mapa como el archivo de descarga
   function updateRaster() {
-    var year = document.getElementById("yearRange").value;
-    var municipality = document.getElementById("municipalitySelect").value;
-    
-    // Update the iframe source based on the selected year and municipality
-    var iframeSrc = '{{ url_for("static", filename="rasters/") }}' + municipality + '/' + year + '/map.html';
+    var year = document.getElementById("yearRange").value;  // Obtiene el año seleccionado
+    var municipality = document.getElementById("municipalitySelect").value;  // Obtiene el municipio seleccionado
+
+    // Actualiza el iframe con la nueva ruta según municipio y año
+    var iframeSrc = `/static/rasters/${municipality}/${year}.html`;
     document.getElementById("mapFrame").src = iframeSrc;
 
-    // Enable download button and update download link
+    // Habilita el botón de descarga
     var downloadButton = document.getElementById("downloadBtn");
     downloadButton.disabled = false;
-    downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';  // Cambio aquí
+    downloadButton.href = `/static/rasters/${municipality}/${year}.tif`;
   }
 
-  // Update year value in the label dynamically
+  // Esta función actualiza el año visible y llama a la función para actualizar el raster
   function updateYear(year) {
-      document.getElementById("yearValue").innerText = year;
-      var municipality = document.getElementById("municipalitySelect").value;
-      var iframeSrc = `{{ url_for('static', filename='') }}rasters/${municipality}/${year}.html`;
-      document.getElementById("mapFrame").src = iframeSrc;
-
-      // Update download link dynamically
-      var downloadButton = document.getElementById("downloadBtn");
-      downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';  // Cambio aquí
+    document.getElementById("yearValue").innerText = year;
+    updateRaster();  // Actualiza el raster con el nuevo año
   }
 </script>
 {% endblock %}
@@ -59,14 +54,14 @@
     type="range"
     id="yearRange"
     min="1990"
-    max="2020"
+    max="2015"
     value="1990"
     step="5"
     oninput="updateYear(this.value)"
   />
   
   <label for="municipalitySelect">Choose a municipality:</label>
-  <select id="municipalitySelect" onchange="updateRaster()">
+  <select id="municipalitySelect" oninput="updateRaster()">
     <option value="Arauca">Arauca</option>
     <option value="Arauquita">Arauquita</option>
     <option value="Cravo_Norte">Cravo_Norte</option>
@@ -80,6 +75,7 @@
   <a id="downloadBtn" href="#" class="btn btn-primary" disabled>Download Raster</a>
 </div>
 <div style="width: 100%; height: 600px;">
+  <!-- El iframe se carga con valores predeterminados de municipio y año -->
   <iframe id="mapFrame" src="{{ url_for('static', filename='rasters/Arauca/1990.html') }}" 
           width="100%" height="130%" frameborder="0"></iframe>
 </div>
