@@ -1,0 +1,50 @@
+{% extends "base_conflict.html" %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+  /* General body styling */
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+  }
+
+  /* Container styling for a full-screen layout */
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100vh;
+    padding-top: 50px;
+    box-sizing: border-box;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>LULC Conflict Assesment</h2> <!-- Título modificado -->
+    <p>Please set the name of the variable classified as 'class'</p> <!-- Mensaje debajo del título -->
+
+    <!-- Opción de seleccionar entre 'Vocation' o 'Ambiental offer' -->
+    <label for="classification-type">Select Classification:</label>
+    <select name="classification-type" id="classification-type" required>
+        <option value="Vocation">Vocation</option>
+        <option value="Ambiental offer">Ambiental offer</option>
+    </select><br><br>
+
+    {% if success is not none %}
+        <p style="color: green;">{{ success }}</p>
+    {% elif error is not none %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data">
+        <label for="file1">Upload Shapefile (ZIP):</label>
+        <input type="file" name="file1" accept=".zip" required><br><br>
+        <button type="submit">Upload and Calculate</button>
+    </form>
+</div>
+{% endblock %}
