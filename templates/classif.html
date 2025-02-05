@@ -1,0 +1,50 @@
+{% extends "base_classification.html" %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+{{ super() }}
+<div class="container d-flex justify-content-center align-items-center flex-column">
+    <!-- Título principal -->
+    <h1 class="text-center">LULC Classification</h1>
+    
+    <!-- Descripción -->
+    <p class="text-center">This workflow uses CORINE land cover level 2 (IDEAM) and FAO delineations for land use classification.</p>
+
+    {% if success %}
+        <p class="text-center">Classification completed successfully!</p>
+        <div class="text-center">
+            <a href="{{ url_for('download_file', filename=shapefile) }}" class="btn btn-primary">Download Classified Shapefile</a>
+        </div>
+    {% else %}
+        <form action="{{ url_for('main.classif') }}" method="post" enctype="multipart/form-data" class="w-50 text-center">
+            <div class="mb-3">
+                <label for="raster" class="form-label">Upload Raster File:</label>
+                <input type="file" name="raster" id="raster" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="municipality" class="form-label">Select Municipality:</label>
+                <select id="municipality" name="municipality" class="form-select">
+                    <option value="Arauca">Arauca</option>
+                    <option value="Arauquita">Arauquita</option>
+                    <option value="Cravo Norte">Cravo Norte</option>
+                    <option value="Fortul">Fortul</option>
+                    <option value="Puerto Rondon">Puerto Rondon</option>
+                    <option value="Saravena">Saravena</option>
+                    <option value="Tame">Tame</option>
+                </select>
+            </div>
+            <!-- Input for the number of segments placed above the button -->
+            <div class="mb-3">
+                <label for="segments" class="form-label">Number of Segments:</label>
+                <input type="number" id="segments" name="segments" min="10" max="100000" step="1" value="200" required>
+            </div>
+                
+            <button type="submit" class="btn btn-success">Process</button>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

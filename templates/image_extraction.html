@@ -1,4 +1,4 @@
-{% extends "base2.html" %}
+{% extends "base_image_extraction.html" %}
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
@@ -23,7 +23,6 @@
   }
 </style>
 <script>
-  // Esta función actualiza tanto el mapa como el archivo de descarga
   function updateRaster() {
     var year = document.getElementById("yearRange").value;  // Obtiene el año seleccionado
     var municipality = document.getElementById("municipalitySelect").value;  // Obtiene el municipio seleccionado
@@ -35,7 +34,7 @@
     // Habilita el botón de descarga
     var downloadButton = document.getElementById("downloadBtn");
     downloadButton.disabled = false;
-    downloadButton.href = `/static/rasters/${municipality}/${year}.tif`;
+    downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';
   }
 
   // Esta función actualiza el año visible y llama a la función para actualizar el raster
@@ -75,7 +74,6 @@
   <a id="downloadBtn" href="#" class="btn btn-primary" disabled>Download Raster</a>
 </div>
 <div style="width: 100%; height: 600px;">
-  <!-- El iframe se carga con valores predeterminados de municipio y año -->
   <iframe id="mapFrame" src="{{ url_for('static', filename='rasters/Arauca/1990.html') }}" 
           width="100%" height="130%" frameborder="0"></iframe>
 </div>
