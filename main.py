@@ -18,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 import pandas as pd
 from rasterio.mask import mask
 from shapely.geometry import shape
+import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 import seaborn as sns
@@ -394,11 +395,11 @@ def create_folium_map(gdf, map_id):
         ).add_to(m)
     
     # Guardar el mapa como archivo HTML
-    map_path = os.path.join('Image_Analysis_Arauca','static', f'{map_id}.html')
+    map_path = os.path.join('static', f'{map_id}.html')
     m.save(map_path)
     return map_path
 
-@main.route('/', methods=['GET', 'POST'])
+@main.route('/change', methods=['GET', 'POST'])
 def change():
     graph_url = None
     map1_url = None 
@@ -465,7 +466,7 @@ def change():
             plt.legend(title="Change", loc="upper left")
             plt.tight_layout()
 
-            graph_path = os.path.join('Image_Analysis_Arauca','static', 'images', 'area_change.png')
+            graph_path = os.path.join('static', 'images', 'area_change.png')
             plt.savefig(graph_path)
             plt.close()
 
