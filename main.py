@@ -311,27 +311,69 @@ def extract_bands(polygons_path, input_path,municipality):
     #            zipf.write(file_path, os.path.basename(file_path))
     return output_path
 
-def apply_model(polygons_path,polygons_band,municipality):
-    model=joblib.load("static/models/model.joblib")
-    polygons=gpd.read_file(polygons_path)
-    gdf_X=gpd.read_file(polygons_band)
-    gdf_final=gpd.GeoDataFrame()
+def get_file_from_drive(folder_name, file_name):
+    """Busca un archivo dentro de una carpeta específica en Google Drive y lo descarga."""
+    # Buscar la carpeta "models"
+    query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed=false"
+    results = drive_service.files().list(q=query, fields="files(id)").execute()
+    folder = results.get("files", [])
+
+    if not folder:
+        raise FileNotFoundError(f"No se encontró la carpeta '{folder_name}' en tu unidad de Google Drive.")
+    
+    folder_id = folder[0]["id"]
+
+    # Buscar el archivo model.joblib dentro de la carpeta models
+    query = f"name = '{file_name}' and '{folder_id}' in parents"
+    results = drive_service.files().list(q=query, fields="files(id)").execute()
+    file = results.get("files", [])
+
+    if not file:
+        raise FileNotFoundError(f"No se encontró el archivo '{file_name}' en la carpeta '{folder_name}'.")
+
+    file_id = file[0]["id"]
+
+    # Descargar el archivo
+    request = drive_service.files().get_media(fileId=file_id)
+    file_stream = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_stream, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_stream.seek(0)
+    return file_stream
+
+def apply_model(polygons_path, polygons_band, municipality):
+    # Obtener el archivo model.joblib desde Google Drive
+    model_stream = get_file_from_drive("models", "model.joblib")
+    
+    # Cargar el modelo desde el stream
+    model = joblib.load(model_stream)
+
+    # Cargar y procesar los datos
+    polygons = gpd.read_file(polygons_path)
+    gdf_X = gpd.read_file(polygons_band)
+    gdf_final = gpd.GeoDataFrame()
+    
     gdf_X = gdf_X.drop(columns='geometry')
-    gdf_X=gdf_X[['Blue','Green','Red','NIR' ,'WIR1','WIR2','ndvi','rvi','evi','Elevation','Slope']]
-    gdf_final['class']=model.predict(gdf_X)
-    gdf_final['geometry']=polygons.geometry
-    gdf_final=gpd.GeoDataFrame(gdf_final)
+    gdf_X = gdf_X[['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2', 'ndvi', 'rvi', 'evi', 'Elevation', 'Slope']]
+    
+    gdf_final['class'] = model.predict(gdf_X)
+    gdf_final['geometry'] = polygons.geometry
+    gdf_final = gpd.GeoDataFrame(gdf_final)
+
     shapefile_base = os.path.join(RESULT_FOLDER, f"Class_{municipality}")
     gdf_final.to_file(f"{shapefile_base}.shp")
-    
-    # Crear un archivo ZIP que contiene todos los archivos necesarios para el shapefile
+
+    # Crear archivo ZIP con el shapefile
     zip_filename = f"{shapefile_base}.zip"
     with zipfile.ZipFile(zip_filename, 'w') as zipf:
         for ext in ['.shp', '.shx', '.dbf', '.prj']:
             file_path = f"{shapefile_base}{ext}"
             if os.path.exists(file_path):
                 zipf.write(file_path, os.path.basename(file_path))
-    
+
     return zip_filename
 
 @main.route('/download2/<filename>')
