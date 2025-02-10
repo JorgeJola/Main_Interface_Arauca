@@ -1,0 +1,38 @@
+{% extends "viz.html" %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+{{ super() }}
+<div class="input-group">
+    <label for="yearSelect">Select a year: <span id="yearValue">1992</span></label>
+    <select id="yearSelect" onchange="updateYear(this.value)">
+        <option value="1992">1992</option>
+        <option value="2002">2002</option>
+        <option value="2012">2012</option>
+        <option value="2018">2018</option>
+    </select>
+</div>
+
+<div style="width: 100%; height: 600px;">
+    <iframe id="mapFrame" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="100%" height="100%" frameborder="0"></iframe>
+</div>
+
+<div style="text-align: center;">
+    <img id="infoImage" src="{{ url_for('static', filename='images/Areas1992.png') }}" 
+         alt="Information Image" style="width: 70%; height: auto; margin-top: 20px;"/>
+</div>
+
+
+<script>
+    function updateYear(year) {
+        document.getElementById("yearValue").innerText = year;
+        document.getElementById("mapFrame").src = `{{ url_for('static', filename='') }}raster${year}.html`;
+        document.getElementById("infoImage").src = `{{ url_for('static', filename='') }}images/Areas${year}.png`;
+    }
+</script>
+{% endblock %}

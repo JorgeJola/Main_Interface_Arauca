@@ -644,3 +644,19 @@ def conflict():
 
     return render_template('conflict.html')
 
+#########################################################################################################
+##################################### Vizualization ##########################################################
+#########################################################################################################
+@main.route('/analysis')
+def analysis():
+    return render_template('analysis.html')
+
+@main.route('/soil_use_map')
+def soil_use_map():
+    map_html_path = 'static/shape1992.html'
+
+    return render_template('soil_use_map.html', map_path=map_html_path)
+
+@main.route('/compare')
+def compare():
+    return render_template('compare.html')
