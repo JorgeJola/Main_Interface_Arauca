@@ -37,7 +37,7 @@
         
         <button type="submit">Upload and Calculate</button>
     </form>
-
+    <img src="{{ url_for('static', filename='images/example.png') }}" alt="Imagen de fondo" style="width: 45%; max-height: 600px; display: block; margin-top: 20px;">
     {% if map1_url and map2_url %}
     <h3>Successful analysis!</h3>
     <div style="display: flex; justify-content: space-between; width: 100%; height: 600px;">
@@ -55,4 +55,6 @@
     </div>
     {% endif %}
 </div>
+
+
 {% endblock %}
