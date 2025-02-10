@@ -660,3 +660,6 @@ def soil_use_map():
 @main.route('/compare')
 def compare():
     return render_template('compare.html')
+@main.route('/puente')
+def puente():
+    return render_template('puente.html')
