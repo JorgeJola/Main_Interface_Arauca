@@ -1,0 +1,25 @@
+{% extends "viz.html" %} {% block head %} {{ super() }}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename= 'extended_beauty.css') }}"
+/>
+{% endblock %}
+
+{% block content %}
+{{ super() }}
+<div style="text-align: center;">
+    <img id="infoImage" src="{{ url_for('static', filename='images/Barras1.png') }}" 
+         alt="Information Image" style="width: 70%; height: auto; margin-top: 20px;"/>
+</div>
+<div style="text-align: center; margin-top: 20px;">
+  <h3>Time Series of Area Coverage</h3>
+</div>
+<div style="text-align: center; margin-top: 30px;">
+  <img src="{{ url_for('static', filename='images/animated_lines.gif') }}" 
+       alt="Change GIF" style="height: 600px; width: 1000px;"/>
+</div>
+<div style="text-align: center; margin-top: 40px;">
+  <h3>Sankey Diagram of Land Use Change</h3>
+  <iframe src="{{ url_for('static', filename='sankey_diagram.html') }}" width="100%" height="600px" style="border: none;"></iframe>
+</div>
+{% endblock %}

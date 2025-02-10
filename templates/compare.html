@@ -1,0 +1,74 @@
+{% extends "viz.html" %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+{{ super() }}
+<div style="display: flex; justify-content: space-between; width: 100%;">
+    <!-- Primer filtro de año -->
+    <div class="input-group">
+        <label for="yearSelect1">Select a year for Map 1: <span id="yearValue1">1992</span></label>
+        <select id="yearSelect1" onchange="updateMaps()">
+            <option value="1992">1992</option>
+            <option value="2002">2002</option>
+            <option value="2012">2012</option>
+            <option value="2018">2018</option>
+        </select>
+    </div>
+
+    <!-- Segundo filtro de año alineado a la derecha -->
+    <div class="input-group">
+        <label for="yearSelect2">Select a year for Map 2: <span id="yearValue2">1992</span></label>
+        <select id="yearSelect2" onchange="updateMaps()">
+            <option value="1992">1992</option>
+            <option value="2002">2002</option>
+            <option value="2012">2012</option>
+            <option value="2018">2018</option>
+        </select>
+    </div>
+</div>
+
+<div style="display: flex; justify-content: space-between; width: 100%; height: 600px;">
+    <!-- Primer mapa -->
+    <iframe id="mapFrame1" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="48%" height="100%" frameborder="0"></iframe>
+    <!-- Segundo mapa -->
+    <iframe id="mapFrame2" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="48%" height="100%" frameborder="0"></iframe>
+</div>
+
+<!-- Div para cargar el archivo HTML de cambio de uso del suelo -->
+<div id="changeMap"></div>
+
+<script>
+    function updateMaps() {
+        // Obtener los valores seleccionados de los años
+        var year1 = document.getElementById("yearSelect1").value;
+        var year2 = document.getElementById("yearSelect2").value;
+
+        // Actualizar los mapas con los años correctos
+        document.getElementById("yearValue1").innerText = year1;
+        document.getElementById("mapFrame1").src = `{{ url_for('static', filename='raster') }}${year1}.html`;
+        document.getElementById("yearValue2").innerText = year2;
+        document.getElementById("mapFrame2").src = `{{ url_for('static', filename='raster') }}${year2}.html`;
+        // Intercambiar los valores si year1 es mayor que year2
+        if (parseInt(year1) > parseInt(year2)) {
+            // Intercambiar los valores de los años
+            var temp = year1;
+            year1 = year2;
+            year2 = temp;
+        }
+
+        // Mostrar el archivo de cambio de uso del suelo si los años son diferentes
+        if (year1 !== year2) {
+            var changeMapFile = `Change_${year1}_${year2}.html`;
+            document.getElementById("changeMap").innerHTML = `<iframe src="{{ url_for('static', filename='images/') }}${changeMapFile}" width="100%" height="600px" frameborder="0"></iframe>`;
+        } else {
+            document.getElementById("changeMap").innerHTML = '';  // No mostrar nada si los años son iguales
+        }
+    }
+</script>
+{% endblock %}
