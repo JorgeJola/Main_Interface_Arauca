@@ -11,7 +11,6 @@ from skimage import exposure
 import numpy as np
 from skimage.segmentation import slic
 from rasterio.features import shapes
-import zipfile
 import joblib
 import geopandas as gpd
 from sklearn.preprocessing import StandardScaler
@@ -302,13 +301,6 @@ def extract_bands(polygons_path, input_path,municipality):
 
     output_path = os.path.join(RESULT_FOLDER, f"gdf_X_{municipality}.shp")
     gdf_X_standarized.to_file(f"{output_path}")
-
-    #zip_filename = f"{shapefile_base}.zip"
-    #with zipfile.ZipFile(zip_filename, 'w') as zipf:
-    #    for ext in ['.shp', '.shx', '.dbf', '.prj']:
-    #        file_path = f"{shapefile_base}{ext}"
-    #        if os.path.exists(file_path):
-    #            zipf.write(file_path, os.path.basename(file_path))
     return output_path
 
 def get_file_from_drive(folder_name, file_name):
@@ -363,46 +355,21 @@ def apply_model(polygons_path, polygons_band, municipality):
     gdf_final['geometry'] = polygons.geometry
     gdf_final = gpd.GeoDataFrame(gdf_final)
 
-    shapefile_base = os.path.join(RESULT_FOLDER, f"Class_{municipality}")
-    gdf_final.to_file(f"{shapefile_base}.shp")
-
-    # Crear archivo ZIP con el shapefile
-    zip_filename = f"{shapefile_base}.zip"
-    with zipfile.ZipFile(zip_filename, 'w') as zipf:
-        for ext in ['.shp', '.shx', '.dbf', '.prj']:
-            file_path = f"{shapefile_base}{ext}"
-            if os.path.exists(file_path):
-                zipf.write(file_path, os.path.basename(file_path))
-
-    return zip_filename
+    # Guardar como GeoJSON
+    geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{municipality}.geojson")
+    gdf_final.to_file(geojson_filename, driver='GeoJSON')
+    
+    return geojson_filename
 
 @main.route('/download2/<filename>')
 def download_file_classification(filename):
-    # Construir la ruta del archivo .zip
     file_path = os.path.join(RESULT_FOLDER, filename)
-    
-    # Enviar el archivo .zip como una descarga
     return send_file(file_path, as_attachment=True)
 
 
 #########################################################################################################
 ##################################### Analysis ##########################################################
 #########################################################################################################
-def extract_shapefile(zip_path, extract_folder):
-    print(f"Extracting zip: {zip_path} to {extract_folder}")  # Depuración
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_folder)
-    
-    # Buscar archivos .shp en subdirectorios, ignorando archivos no válidos como '._'
-    shapefiles = []
-    for root, dirs, files in os.walk(extract_folder):
-        for file in files:
-            # Ignorar archivos con prefijo '._' o archivos no shapefiles
-            if file.endswith('.shp') and not file.startswith('._'):
-                shapefiles.append(os.path.join(root, file))
-    
-    print(f"Shapefiles found: {shapefiles}")  # Depuración
-    return shapefiles[0] if shapefiles else None
 
 class_colors = {  
     'Urban Zones': '#761800',
@@ -464,20 +431,13 @@ def change():
 
             file1.save(file1_path)
             file2.save(file2_path)
+            
 
-            # Extraer shapefiles
-            file1_shapefile = extract_shapefile(file1_path, os.path.join(upload_folder, 'file1'))
-            file2_shapefile = extract_shapefile(file2_path, os.path.join(upload_folder, 'file2'))
+            gdf1 = gpd.read_file(os.path.join(file1_path))
+            gdf2 = gpd.read_file(os.path.join(file2_path))
 
-            # Verificar si se extrajeron shapefiles correctamente
-            if not file1_shapefile or not file2_shapefile:
-                return "Error: No shapefiles found in the uploaded ZIP files."
-
-            gdf1 = gpd.read_file(os.path.join(upload_folder, 'file1', file1_shapefile))
-            gdf2 = gpd.read_file(os.path.join(upload_folder, 'file2', file2_shapefile))
-
-            map1 = create_folium_map(gdf1, 'map1')
-            map2 = create_folium_map(gdf2, 'map2')
+            map1 = create_folium_map(gdf1,'map1')
+            map2 = create_folium_map(gdf2,'map2')
 
             # Verificar CRS y transformar si es necesario
             if gdf1.crs.to_string() == "EPSG:4326":
@@ -526,20 +486,6 @@ def change():
 #########################################################################################################
 ##################################### Conflict ##########################################################
 #########################################################################################################
-def extract_shapefile_conflict(zip_path, extract_folder):
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_folder)
-        shapefiles = [
-            os.path.join(root, file)
-            for root, _, files in os.walk(extract_folder)
-            for file in files if file.endswith('.shp') and not file.startswith('._')
-        ]
-        return shapefiles[0] if shapefiles else None
-    except Exception as e:
-        print(f"Error extracting shapefile: {e}")
-        return None
-
 @main.route('/download3/<filename>')
 def download_file_conflict(filename):
     file_path = os.path.join(RESULT_FOLDER, filename)
@@ -559,14 +505,13 @@ def conflict():
 
         extract_folder = os.path.join(UPLOAD_FOLDER, 'file1')
         os.makedirs(extract_folder, exist_ok=True)
-        shapefile1 = extract_shapefile_conflict(file1_path, extract_folder)
+        gdf1= gpd.read_file(os.path.join(file1_path))
 
-        if not shapefile1:
+        if gdf1.empty:
             return "Error: No valid shapefile found in the uploaded file", 400
 
         try:
             # Cargar los shapefiles
-            gdf1 = gpd.read_file(shapefile1)
             gdf2 = gpd.read_file(
                 os.path.join('static', 'vocation', 'vocation_Arauca.shp')
             )
@@ -624,19 +569,10 @@ def conflict():
             result["Conflict_Level"] = result.apply(assign_conflict, axis=1)
 
             # Guardar el resultado como shapefile
-            output_path = os.path.join(RESULT_FOLDER, 'conflict')
-            result.to_file(f"{output_path}.shp")
-
-            # Comprimir el archivo de salida
-            zip_filename = f"{output_path}.zip"
-            with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                for ext in ['.shp', '.shx', '.dbf', '.prj']:
-                    file_path = f"{output_path}{ext}"
-                    if os.path.exists(file_path):
-                        zipf.write(file_path, os.path.basename(file_path))
-
+            geojson_filename = os.path.join(RESULT_FOLDER, f"Conflict.geojson")
+            result.to_file(geojson_filename, driver='GeoJSON')
             # Redirigir a la descarga
-            return redirect(url_for('main.download_file_conflict', filename=os.path.basename(zip_filename)))
+            return redirect(url_for('main.download_file_conflict', filename=os.path.basename(geojson_filename)))
 
         except Exception as e:
             print(f"Error processing shapefiles: {e}")
@@ -660,6 +596,3 @@ def soil_use_map():
 @main.route('/compare')
 def compare():
     return render_template('compare.html')
-@main.route('/puente')
-def puente():
-    return render_template('puente.html')

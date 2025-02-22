@@ -42,8 +42,8 @@
         <p style="color: red;">{{ error }}</p>
     {% endif %}
     <form method="POST" enctype="multipart/form-data">
-        <label for="file1">Upload Shapefile (ZIP):</label>
-        <input type="file" name="file1" accept=".zip" required><br><br>
+        <label for="file1">Upload GeoJson (.geojson):</label>
+        <input type="file" name="file1" accept=".geojson" required><br><br>
         <button type="submit">Upload and Calculate</button>
     </form>
     <img src="{{ url_for('static', filename='images/example.png') }}" alt="Imagen de fondo" style="width: 45%; max-height: 600px; display: block; margin-top: 20px;">
