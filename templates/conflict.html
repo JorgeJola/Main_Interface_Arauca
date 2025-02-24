@@ -26,26 +26,30 @@
 
 {% block content %}
 <div class="container">
-    <h2>LULC Conflict Assesment</h2> <!-- Título modificado -->
-    <p>Please set the name of the variable classified as 'class'</p> <!-- Mensaje debajo del título -->
-
-    <!-- Opción de seleccionar entre 'Vocation' o 'Ambiental offer' -->
-    <label for="classification-type">Select Classification:</label>
-    <select name="classification-type" id="classification-type" required>
-        <option value="Vocation">Vocation</option>
-        <option value="Ambiental offer">Ambiental offer</option>
-    </select><br><br>
+    <h2>LULC Conflict Assessment</h2> <!-- Corregí "Assesment" a "Assessment" -->
+    <p>Please set the name of the variable classified as 'class'</p>
 
     {% if success is not none %}
         <p style="color: green;">{{ success }}</p>
     {% elif error is not none %}
         <p style="color: red;">{{ error }}</p>
     {% endif %}
+
+    <!-- Formulario corregido con el select dentro -->
     <form method="POST" enctype="multipart/form-data">
+        <label for="classification-type">Select Classification:</label>
+        <select name="classification-type" id="classification-type" required>
+            <option value="Vocation">Vocation</option>
+            <option value="Ambiental offer">Ambiental offer</option>
+        </select>
+
         <label for="file1">Upload GeoJson (.geojson):</label>
         <input type="file" name="file1" accept=".geojson" required><br><br>
+
         <button type="submit">Upload and Calculate</button>
     </form>
-    <img src="{{ url_for('static', filename='images/example.png') }}" alt="Imagen de fondo" style="width: 45%; max-height: 600px; display: block; margin-top: 20px;">
+
+    <img src="{{ url_for('static', filename='images/example.png') }}" alt="Example Image" 
+         style="width: 45%; max-height: 600px; display: block; margin-top: 20px;">
 </div>
 {% endblock %}

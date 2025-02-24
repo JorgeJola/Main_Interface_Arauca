@@ -124,65 +124,10 @@ def classif():
             # Guardar archivo subido
             raster_path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(raster_path)
-            processed_raster_path = process_raster(raster_path, municipality)
-            segmented_raster_path = segment_raster(processed_raster_path, municipality,segments)
-            polygons_path = generate_shapefile(segmented_raster_path, municipality)
-            polygons_bands = extract_bands(polygons_path, processed_raster_path, municipality)
-            polygons_classif = apply_model(polygons_path, polygons_bands, municipality)
+            polygons_classif = clasify(raster_path, municipality,segments)
             return redirect(url_for('main.download_file_classification', filename=os.path.basename(polygons_classif)))
         
     return render_template("classif.html", success=False)
-
-def process_raster(input_path, municipality):
-    output_path = os.path.join(RESULT_FOLDER, f"Cleaned_Raster_{municipality}.tif")
-
-    with rasterio.open(input_path) as multiband_raster:
-        # Copiar metadatos y ajustar para el archivo de salida
-        new_metadata = multiband_raster.meta
-        new_metadata.update(count=6)
-
-        with rasterio.open(output_path, 'w', **new_metadata) as dst:
-            for i in range(1, 7):  # Procesar bandas 1 a 6
-                band = multiband_raster.read(i)  # Leer banda individualmente
-                dst.write(band, indexes=i)  # Escribir banda individualmente
-
-    return output_path
-
-
-def segment_raster(input_path, municipality, segments):
-    print('Empezamos')
-    with rasterio.open(input_path) as src:
-        nbands = src.count
-        width = src.width
-        height = src.height
-        
-        # Preasignar un arreglo para las bandas
-        band_data = np.empty((height, width, nbands), dtype=src.dtypes[0])
-        
-        # Leer las bandas directamente en el arreglo preasignado
-        for i in range(nbands):
-            band = src.read(i + 1, window=rasterio.windows.Window(0, 0, width, height))
-            band_data[:, :, i] = band  # Asignar al arreglo preasignado
-            del band
-
-        # Ajustar intensidades y realizar segmentación
-        img = exposure.rescale_intensity(band_data)
-
-        # Usar el valor de segmentos proporcionado por el usuario
-        segments = slic(img, n_segments=segments, compactness=0.03)
-
-        # Guardar el resultado de la segmentación
-        output_path = os.path.join(RESULT_FOLDER, f"Segmented_Raster_{municipality}.tif")
-
-        with rasterio.open(input_path) as src:
-            profile = src.profile
-            profile.update(dtype=rasterio.float32, count=1)
-
-            with rasterio.open(output_path, 'w', **profile) as dst:
-                dst.write(segments.astype(rasterio.float32), 1)
-        print('Terminamos segmentacion')
-
-    return output_path
 
 municipality_shapefiles = {
     'Arauca': 'AraucaLC.shp',
@@ -193,37 +138,6 @@ municipality_shapefiles = {
     'Saravena': 'SaravenaLC.shp',
     'Tame': 'TameLC.shp'
 }
-
-def generate_shapefile(segmented_raster_path, municipality):
-    # Abrir el raster segmentado
-    with rasterio.open(segmented_raster_path) as segmented_raster:
-        band = segmented_raster.read(1)  # Leer la primera banda
-        transform = segmented_raster.transform  # Obtener la transformación geográfica
-
-        # Generar geometrías y valores a partir del raster
-        shapes_generator = shapes(band, transform=transform)
-        geometries = []
-        values = []
-
-        for geom, value in shapes_generator:
-            geometries.append(shape(geom))  # Convertir geometría a objeto Shapely
-            values.append(value)  # Guardar valor asociado
-
-    # Crear un GeoDataFrame
-    gdf = gpd.GeoDataFrame({'geometry': geometries, 'value': values})
-    gdf.set_crs(segmented_raster.crs, allow_override=True, inplace=True)
-
-    # Leer el archivo de área de interés (AOI) para el municipio
-    aoi = gpd.read_file(f'static/aois/{municipality_shapefiles.get(municipality)}')
-
-    # Guardar el GeoDataFrame como shapefile
-    polygons = gpd.clip(gdf, aoi)
-    output_path = os.path.join(RESULT_FOLDER, f"Polygons_{municipality}.shp")
-
-    # Guardar los archivos .shp, .shx, .dbf, etc.
-    polygons.to_file(f"{output_path}")
-    print('Terminamos shapefile')
-    return output_path
 municipality_dem = {
     'Arauca': 'Arauca_elevation_slope.tif',
     'Arauquita': 'Arauquita_elevation_slope.tif',
@@ -233,76 +147,6 @@ municipality_dem = {
     'Saravena': 'Saravena_elevation_slope.tif',
     'Tame': 'Tame_elevation_slope.tif'
 }
-def extract_bands(polygons_path, input_path,municipality):
-    dem_raster=rasterio.open(f'static/aois/{municipality_dem.get(municipality)}')
-    newbands_raster=rasterio.open(input_path)
-    polygons=gpd.read_file(polygons_path)
-
-    polygons = polygons.to_crs(dem_raster.crs)
-
-    means_spectra_polygon = []
-    means_dem_polygon = []
-
-    for _, polygon in polygons.iterrows():
-        # Extract the polygon geometry
-        geom = [polygon['geometry']]
-        # Mask the raster with the polygon
-        out_image1, out_transform1 = mask(newbands_raster, geom, crop=True)
-        out_image2, out_transform2 = mask(dem_raster, geom, crop=True)
-        # Calculate the mean for each band in the masked area
-        means1 = np.nanmean(out_image1, axis=(1, 2)) 
-        means2 = np.nanmean(out_image2, axis=(1, 2)) 
-        # Store the means and associated polygon id (or other attributes)
-        means_spectra_polygon.append(dict(polygon_id=polygon['value'], means=means1))
-        means_dem_polygon.append(dict(polygon_id=polygon['value'], means=means2))
-
-    means_df1 = pd.DataFrame(means_spectra_polygon)
-    means_df2 = pd.DataFrame(means_dem_polygon)
-
-    for i, band_mean in enumerate(means_df1['means']):
-        # Create a new column for each band
-        for j, mean in enumerate(band_mean):
-            if j==0:
-                band_name = f"Blue_mean"
-            elif j==1:
-                band_name = f"Green_mean"
-            elif j==2:
-                band_name = f"Red_mean"
-            elif j==3:
-                band_name = f"NIR_mean"
-            elif j==4:
-                band_name = f"WIR1_mean"
-            elif j==5:
-                band_name = f"WIR2_mean"
-            polygons.at[i, band_name] = mean
-
-    for i, band_mean in enumerate(means_df2['means']):
-        # Create a new column for each band
-        for j, mean in enumerate(band_mean):
-            if j==0:
-                band_name = f"Elevation_"
-            elif j==1:
-                band_name = f"Slope_mean"
-            polygons.at[i, band_name] = mean
-
-    gdf_X=polygons[['Blue_mean', 'Green_mean', 'Red_mean', 'NIR_mean',
-        'WIR1_mean', 'WIR2_mean', 'Elevation_', 'Slope_mean']]
-    gdf_X=gdf_X.set_axis(['Blue','Green','Red','NIR','WIR1','WIR2','Elevation','Slope'],axis=1)
-    gdf_X[['Blue','Green','Red','NIR','WIR1','WIR2']]=gdf_X[['Blue','Green','Red','NIR','WIR1','WIR2']]*0.0000275-0.2
-    gdf_X['ndvi']=(gdf_X['NIR']-gdf_X['Red'])/(gdf_X['NIR']+gdf_X['Red'])
-    #gdf_X['ndbi']=(gdf_X['WIR1']-gdf_X['NIR'])/(gdf_X['WIR1']+gdf_X['NIR'])
-    gdf_X['rvi']= gdf_X['WIR1']/gdf_X['NIR']
-    #gdf_X['dvi']=gdf_X['WIR1']-gdf_X['NIR']
-    gdf_X['evi']=2.5 * (gdf_X['NIR'] - gdf_X['Red']) / (gdf_X['NIR'] + (gdf_X['Red'] * 6) - (gdf_X['Blue'] * 7.5) + 1)
-    scaler=StandardScaler()
-    gdf_X_standarized=pd.DataFrame(scaler.fit_transform(gdf_X),columns=gdf_X.columns)
-    gdf_X_standarized['geometry']=polygons.geometry
-    gdf_X_standarized=gpd.GeoDataFrame(gdf_X_standarized)
-
-    output_path = os.path.join(RESULT_FOLDER, f"gdf_X_{municipality}.shp")
-    gdf_X_standarized.to_file(f"{output_path}")
-    return output_path
-
 def get_file_from_drive(folder_name, file_name):
     """Busca un archivo dentro de una carpeta específica en Google Drive y lo descarga."""
     # Buscar la carpeta "models"
@@ -336,30 +180,118 @@ def get_file_from_drive(folder_name, file_name):
     file_stream.seek(0)
     return file_stream
 
-def apply_model(polygons_path, polygons_band, municipality):
-    # Obtener el archivo model.joblib desde Google Drive
-    model_stream = get_file_from_drive("models", "model.joblib")
-    
-    # Cargar el modelo desde el stream
-    model = joblib.load(model_stream)
+def clasify(input_path, municipality, segments):
+    print("Iniciando procesamiento...")
 
-    # Cargar y procesar los datos
-    polygons = gpd.read_file(polygons_path)
-    gdf_X = gpd.read_file(polygons_band)
-    gdf_final = gpd.GeoDataFrame()
-    
-    gdf_X = gdf_X.drop(columns='geometry')
-    gdf_X = gdf_X[['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2', 'ndvi', 'rvi', 'evi', 'Elevation', 'Slope']]
-    
-    gdf_final['class'] = model.predict(gdf_X)
-    gdf_final['geometry'] = polygons.geometry
-    gdf_final = gpd.GeoDataFrame(gdf_final)
+    # Leer las primeras 6 bandas del raster
+    with rasterio.open(input_path) as src:
+        band_data = np.stack([src.read(i + 1) for i in range(6)], axis=-1)
+        transform, crs = src.transform, src.crs
+        # Ajustar intensidades y aplicar segmentación SLIC
+        img = exposure.rescale_intensity(band_data)
+        segments = slic(img, n_segments=segments, compactness=0.03)
+        # Generar geometrías a partir del raster segmentado
+        shapes_generator = shapes(segments.astype(np.int32), transform=transform)
+        # Crear un GeoDataFrame
+        gdf = gpd.GeoDataFrame(({'geometry': shape(geom), 'value': value} for geom, value in shapes_generator),crs=crs)
+        # Cargar el área de interés (AOI)
+        aoi = gpd.read_file(f'static/aois/{municipality_shapefiles.get(municipality)}')
+        # Recortar los polígonos al área de interés
+        polygons = gpd.clip(gdf, aoi)
+        # Filtrar geometrías vacías
+        polygons = polygons[~polygons.is_empty].dropna(subset=['geometry'])
+        # Cargar el raster DEM
+        dem_raster=rasterio.open(f'static/aois/{municipality_dem.get(municipality)}')
+        polygons = polygons.to_crs(dem_raster.crs)
 
-    # Guardar como GeoJSON
-    geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{municipality}.geojson")
-    gdf_final.to_file(geojson_filename, driver='GeoJSON')
+        means_spectra_polygon = []
+        means_dem_polygon = []
+
+        for idx, polygon in polygons.iterrows():
+            geom = [polygon['geometry']]
+            try:
+                out_image1, _ = mask(src, geom, crop=True)
+                out_image2, _ = mask(dem_raster, geom, crop=True)
+
+                # Verificar si hay datos válidos
+                if np.isnan(out_image1).all() or np.isnan(out_image2).all():
+                    continue  # Saltar este polígono si no tiene datos
+
+                # Calcular la media para cada banda
+                means1 = np.nanmean(out_image1, axis=(1, 2))
+                means2 = np.nanmean(out_image2, axis=(1, 2))
+
+                means_spectra_polygon.append(dict(polygon_id=polygon['value'], means=means1))
+                means_dem_polygon.append(dict(polygon_id=polygon['value'], means=means2))
+
+            except Exception as e:
+                print(f"Error al procesar polígono {polygon['value']}: {e}")
+                continue  # Saltar en caso de error
+
+            # Convertir a DataFrame
+        means_df1 = pd.DataFrame(means_spectra_polygon)
+        means_df2 = pd.DataFrame(means_dem_polygon)
+
+        # Asegurar que los índices coincidan
+        polygons = polygons.reset_index(drop=True)
+
+        band_names = ['Blue_mean', 'Green_mean', 'Red_mean', 'NIR_mean', 'WIR1_mean', 'WIR2_mean']
+
+        # Convertir la columna 'means' en DataFrame asegurando que cada lista tenga 6 valores
+        means_expanded_df = means_df1['means'].apply(
+            lambda x: pd.Series(np.pad(x[:6], (0, max(0, 6 - len(x))), constant_values=np.nan))
+        )
+
+        # Renombrar las columnas con los nombres de las bandas
+        means_expanded_df.columns = band_names
+
+        # Asignar directamente los valores al DataFrame polygons
+        polygons[band_names] = means_expanded_df
+
+        # Asignar valores de elevación y pendiente
+        band_names = ['Elevation_', 'Slope_mean']
+        # Convertir la columna 'means' en DataFrame para facilitar la asignación
+        means_expanded = pd.DataFrame(means_df2['means'].to_list(), columns=band_names)
+        # Asignar directamente los valores al DataFrame polygons
+        polygons[band_names] = means_expanded
+
+        # Seleccionar y renombrar columnas
+        gdf_X = polygons[['Blue_mean', 'Green_mean', 'Red_mean', 'NIR_mean', 'WIR1_mean', 'WIR2_mean', 'Elevation_', 'Slope_mean']]
+        gdf_X.columns = ['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2', 'Elevation', 'Slope']
+
+        # Normalizar valores espectrales
+        gdf_X[['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2']] = gdf_X[['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2']] * 0.0000275 - 0.2
+
+        # Cálculo de índices
+        gdf_X['ndvi'] = (gdf_X['NIR'] - gdf_X['Red']) / (gdf_X['NIR'] + gdf_X['Red'])
+        gdf_X['rvi'] = gdf_X['WIR1'] / gdf_X['NIR']
+        gdf_X['evi'] = 2.5 * (gdf_X['NIR'] - gdf_X['Red']) / (gdf_X['NIR'] + (gdf_X['Red'] * 6) - (gdf_X['Blue'] * 7.5) + 1)
+
+        # Normalizar datos
+        scaler = StandardScaler()
+        gdf_X_standarized = pd.DataFrame(scaler.fit_transform(gdf_X), columns=gdf_X.columns)
+
+        # Convertir de nuevo a GeoDataFrame
+        gdf_X_standarized['geometry'] = polygons.geometry
+        gdf_X_standarized = gpd.GeoDataFrame(gdf_X_standarized, geometry='geometry', crs=polygons.crs)
+
+        # Cargar el modelo desde el stream
+        model_stream = get_file_from_drive("models", "model.joblib")
+        model = joblib.load(model_stream)
+
+        gdf_final = gpd.GeoDataFrame()
+        gdf_X = gdf_X_standarized.drop(columns='geometry')
+        gdf_X = gdf_X[['Blue', 'Green', 'Red', 'NIR', 'WIR1', 'WIR2', 'ndvi', 'rvi', 'evi', 'Elevation', 'Slope']]
     
-    return geojson_filename
+        gdf_final['class'] = model.predict(gdf_X)
+        gdf_final['geometry'] = polygons.geometry
+        gdf_final = gpd.GeoDataFrame(gdf_final)
+
+        # Guardar como GeoJSON
+        geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{municipality}.geojson")
+        gdf_final.to_file(geojson_filename, driver='GeoJSON')
+        
+        return geojson_filename
 
 @main.route('/download2/<filename>')
 def download_file_classification(filename):
@@ -497,35 +429,41 @@ def download_file_conflict(filename):
 def conflict():
     if request.method == 'POST':
         file1 = request.files.get('file1')
+        classification_type = request.form.get('classification-type')  # Leer selección del usuario
+        print(f"Received classification type: {classification_type}")
         if not file1:
             return "Error: No file uploaded", 400
 
         file1_path = os.path.join(UPLOAD_FOLDER, file1.filename)
         file1.save(file1_path)
 
-        extract_folder = os.path.join(UPLOAD_FOLDER, 'file1')
-        os.makedirs(extract_folder, exist_ok=True)
-        gdf1= gpd.read_file(os.path.join(file1_path))
-
-        if gdf1.empty:
-            return "Error: No valid shapefile found in the uploaded file", 400
-
         try:
-            # Cargar los shapefiles
-            gdf2 = gpd.read_file(
-                os.path.join('static', 'vocation', 'vocation_Arauca.shp')
-            )
+            gdf1 = gpd.read_file(file1_path)
+            if gdf1.empty:
+                return "Error: No valid shapefile found in the uploaded file", 400
+            
+            # Seleccionar el shapefile correcto
+            if classification_type == "Vocation":
+                shapefile_path = os.path.join('static', 'vocation', 'vocation_Arauca.shp')
+                column_name = 'Vocacion'  # Nombre de la columna en vocación
+            elif classification_type == "Ambiental offer":
+                shapefile_path = os.path.join('static', 'vocation', 'ambiental_offer.geojson')
+                column_name = 'Vocacion'  # Nombre de la columna en oferta ambiental
+            else:
+                return "Error: Invalid classification type", 400
 
-            # Asegurarse de que los CRS coinciden
+            if not os.path.exists(shapefile_path):
+                return f"Error: {classification_type} shapefile not found", 500
+
+            gdf2 = gpd.read_file(shapefile_path)
+
+            # Asegurar que los CRS coincidan
             if gdf1.crs != gdf2.crs:
                 gdf1 = gdf1.to_crs(gdf2.crs)
 
-            # Realizar el join espacial
-            result = gpd.sjoin(
-                gdf1, gdf2[['geometry', 'Vocacion']], how='left', predicate='intersects'
-            )
+            # Join espacial
+            result = gpd.sjoin(gdf1, gdf2[['geometry', column_name]], how='left', predicate='intersects')
 
-            # Verificar que 'result' contiene datos válidos
             if result is None or result.empty:
                 raise ValueError("No valid result from spatial join")
 
@@ -539,8 +477,8 @@ def conflict():
             }
             result['Level 2'] = result['class'].replace(labels_dict)
 
-            # Función para asignar el nivel de conflicto
-            def assign_conflict(row):
+            # Función para asignar conflicto
+            def assign_conflict_vocation (row):
                 conflict_mapping = {
                     "Agrícola": {"High": ["11", "12", "13", "31", "33", "41", "51"],
                                  "Moderate": ["32", "22"],
@@ -559,19 +497,53 @@ def conflict():
                                                "No Conflict": ["23", "24", "31", "32"]},
                     "Cuerpo de agua": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33"],
                                        "No Conflict": ["41", "51"]},
-                    "Zonas urbanas": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33", "41", "51"]},
+                    "Zonas urbanas": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33", "41", "51"]}
                 }
-                for level, values in conflict_mapping.get(row["Vocacion"], {}).items():
+                for level, values in conflict_mapping.get(row[column_name], {}).items():
                     if row["Level 2"] in values:
                         return level
                 return "Unknown"
+            def assign_conflict_enviro (row):
+                conflict_mapping = {
+                    "Agrícola": {"High": ["11","12","31","51"],
+                                 "Moderate": ["13","32","33","41"],
+                                 "No Conflict": ["21","23","24","22"]},
+                    "Ganadera": {"High": ["11","12","31","51"],
+                                 "Moderate": ["13","32","33","41"],
+                                 "No Conflict": ["21","23","24","22"]},
+                    "Agroforestal": {"High": ["11","12","31","51"],
+                                     "Moderate": ["13","32","33","41"],
+                                     "No Conflict": ["21","23","24","22"]},
+                    "Forestal": {"High": ["11","12","13","21","23","24"],
+                                 "Moderate": ["33"],
+                                 "No Conflict": ["31","32","41","51"]},
+                    "Áreas de Protección Legal": {"High": ["11","12","13","21","23","24","22"],
+                                               "Moderate": [],
+                                               "No Conflict": ["31","32","33","41","51"]},
+                    "Áreas Prioritarias para la Conservación": {"High": ["11","12","13","21","23","24","22"],
+                                               "Moderate": ["33"],
+                                               "No Conflict": ["31","32","41","51"]},
+                    "Cuerpo de agua": {"High": ["11","12","13","21","23","24","22"],
+                                       "No Conflict": ["31","32","33","41","51"]},
+                    "Zonas urbanas": {"High": ["13","31","32","33"],
+                                               "Moderate": ["21","22","23","24","41","51"],
+                                               "No Conflict": ["11","12"]}
+                }
+                for level, values in conflict_mapping.get(row[column_name], {}).items():
+                    if row["Level 2"] in values:
+                        return level
+                return "Unknown"
+            # Seleccionar el shapefile correcto
+            if classification_type == "Vocation":
+                result["Conflict_Level"] = result.apply(assign_conflict_vocation, axis=1)
+            elif classification_type == "Ambiental offer":
+                result["Conflict_Level"] = result.apply(assign_conflict_enviro, axis=1)
 
-            result["Conflict_Level"] = result.apply(assign_conflict, axis=1)
 
-            # Guardar el resultado como shapefile
-            geojson_filename = os.path.join(RESULT_FOLDER, f"Conflict.geojson")
+            # Guardar resultado en GeoJSON
+            geojson_filename = os.path.join(RESULT_FOLDER, "Conflict.geojson")
             result.to_file(geojson_filename, driver='GeoJSON')
-            # Redirigir a la descarga
+
             return redirect(url_for('main.download_file_conflict', filename=os.path.basename(geojson_filename)))
 
         except Exception as e:
