@@ -624,7 +624,7 @@ def submit_comment():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO user_spatial_comments (name, email, comment, latitude, longitude, year)
+            INSERT INTO user_comments (name, email, comment, latitude, longitude, year)
             VALUES (%s, %s, %s, %s, %s, %s);
         """, (name, email, comment, lat, lng, int(year)))
         conn.commit()
