@@ -14,3 +14,4 @@ folium
 psutil
 matplotlib
 seaborn
+psycopg2-binary
