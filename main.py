@@ -2,6 +2,7 @@ from flask import Blueprint, Flask,render_template, jsonify, send_file, request,
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2.service_account import Credentials
+from concurrent.futures import ThreadPoolExecutor
 import io
 import tempfile
 import os
@@ -22,6 +23,9 @@ import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 import seaborn as sns
 import folium
+import psycopg2
+# Just To calculate the amount of memory consumed
+from memory_profiler import memory_usage
 
 main=Blueprint('main',__name__)
 UPLOAD_FOLDER = tempfile.mkdtemp()
@@ -29,6 +33,7 @@ RESULT_FOLDER = tempfile.mkdtemp()
 
 # Configura las credenciales para la API de Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive']
+#./pelagic-gist-434920-h5-91777317c681
 SERVICE_ACCOUNT_FILE = './pelagic-gist-434920-h5-91777317c681'
 
 credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -184,12 +189,17 @@ def clasify(input_path, municipality, segments):
     print("Iniciando procesamiento...")
 
     # Leer las primeras 6 bandas del raster
+    
     with rasterio.open(input_path) as src:
+        mem_before = memory_usage()[0]  ################## MEMORY TRACK
         band_data = np.stack([src.read(i + 1) for i in range(6)], axis=-1)
         transform, crs = src.transform, src.crs
         # Ajustar intensidades y aplicar segmentación SLIC
         img = exposure.rescale_intensity(band_data)
         segments = slic(img, n_segments=segments, compactness=0.03)
+        mem_after = memory_usage()[0]   ############ MEMORY TRACK
+        print(f"Memory used by slic {mem_after - mem_before:.2f} MiB")
+        mem_before = memory_usage()[0]  ################## MEMORY TRACK
         # Generar geometrías a partir del raster segmentado
         shapes_generator = shapes(segments.astype(np.int32), transform=transform)
         # Crear un GeoDataFrame
@@ -203,9 +213,12 @@ def clasify(input_path, municipality, segments):
         # Cargar el raster DEM
         dem_raster=rasterio.open(f'static/aois/{municipality_dem.get(municipality)}')
         polygons = polygons.to_crs(dem_raster.crs)
-
+        mem_after = memory_usage()[0]   ############ MEMORY TRACK
+        print(f"Memory used by clip and load dem {mem_after - mem_before:.2f} MiB")
+        mem_before = memory_usage()[0]  ################## MEMORY TRACK
         means_spectra_polygon = []
         means_dem_polygon = []
+
 
         for idx, polygon in polygons.iterrows():
             geom = [polygon['geometry']]
@@ -227,7 +240,9 @@ def clasify(input_path, municipality, segments):
             except Exception as e:
                 print(f"Error al procesar polígono {polygon['value']}: {e}")
                 continue  # Saltar en caso de error
-
+        mem_after = memory_usage()[0]   ############ MEMORY TRACK
+        print(f"Memory used calculating mean of each band {mem_after - mem_before:.2f} MiB")
+        mem_before = memory_usage()[0]  ################## MEMORY TRACK
             # Convertir a DataFrame
         means_df1 = pd.DataFrame(means_spectra_polygon)
         means_df2 = pd.DataFrame(means_dem_polygon)
@@ -266,7 +281,9 @@ def clasify(input_path, municipality, segments):
         gdf_X['ndvi'] = (gdf_X['NIR'] - gdf_X['Red']) / (gdf_X['NIR'] + gdf_X['Red'])
         gdf_X['rvi'] = gdf_X['WIR1'] / gdf_X['NIR']
         gdf_X['evi'] = 2.5 * (gdf_X['NIR'] - gdf_X['Red']) / (gdf_X['NIR'] + (gdf_X['Red'] * 6) - (gdf_X['Blue'] * 7.5) + 1)
-
+        mem_after = memory_usage()[0]   ############ MEMORY TRACK
+        print(f"Memory used operations {mem_after - mem_before:.2f} MiB")
+        mem_before = memory_usage()[0]  ################## MEMORY TRACK
         # Normalizar datos
         scaler = StandardScaler()
         gdf_X_standarized = pd.DataFrame(scaler.fit_transform(gdf_X), columns=gdf_X.columns)
@@ -275,9 +292,8 @@ def clasify(input_path, municipality, segments):
         gdf_X_standarized['geometry'] = polygons.geometry
         gdf_X_standarized = gpd.GeoDataFrame(gdf_X_standarized, geometry='geometry', crs=polygons.crs)
 
-        # Cargar el modelo desde el stream
-        model_stream = get_file_from_drive("models", "model.joblib")
-        model = joblib.load(model_stream)
+        # Cargar el modelo desde el streamsads}
+        model = joblib.load(get_file_from_drive("models", "model.joblib"))
 
         gdf_final = gpd.GeoDataFrame()
         gdf_X = gdf_X_standarized.drop(columns='geometry')
@@ -290,6 +306,9 @@ def clasify(input_path, municipality, segments):
         # Guardar como GeoJSON
         geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{municipality}.geojson")
         gdf_final.to_file(geojson_filename, driver='GeoJSON')
+
+        mem_after = memory_usage()[0]   ############ MEMORY TRACK
+        print(f"Memory used joining everything {mem_after - mem_before:.2f} MiB")
         
         return geojson_filename
 
@@ -553,7 +572,7 @@ def conflict():
     return render_template('conflict.html')
 
 #########################################################################################################
-##################################### Vizualization ##########################################################
+##################################### Vizualization #####################################################
 #########################################################################################################
 @main.route('/analysis')
 def analysis():
@@ -568,3 +587,50 @@ def soil_use_map():
 @main.route('/compare')
 def compare():
     return render_template('compare.html')
+
+#########################################################################################################
+##################################### Spatial Comments ##################################################
+#########################################################################################################
+@main.route('/SpatialComments')
+def SpComments():
+    return render_template('SpatialComments.html')
+
+# PostgreSQL 
+DB_CONFIG = {
+    'host': 'localhost',
+    'dbname': 'postgres',
+    'user': 'jorgeandresjolahernandez',
+    'password': '',
+    'port': 5432  # o el puerto que uses
+}
+
+# Generate the connection to the PostgreSQL database
+def get_db_connection():
+    return psycopg2.connect(**DB_CONFIG)
+
+@main.route('/submit_comment', methods=['POST'])
+def submit_comment():
+    name = request.form.get('name')
+    email = request.form.get('email')
+    comment = request.form.get('comment')
+    lat = request.form.get('lat')
+    lng = request.form.get('lng')
+    year = request.form.get('year')
+
+    if not all([name, email, comment, lat, lng,year]):
+        return jsonify({'error': 'Missing data'}), 400
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO user_spatial_comments (name, email, comment, latitude, longitude, year)
+            VALUES (%s, %s, %s, %s, %s, %s);
+        """, (name, email, comment, lat, lng, int(year)))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'message': 'Comment saved'}), 200
+    except Exception as e:
+        print("DB Error:", e)
+        return jsonify({'error': 'Database error'}), 500

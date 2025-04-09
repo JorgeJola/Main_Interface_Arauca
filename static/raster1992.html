@@ -102,3 +102,13 @@
         
 </script>
 </html>
+<script>
+    // ... (todo tu código anterior)
+
+    // Agrega este bloque al final:
+    map_d663852a88f590836691ca58c1ab059c.on('click', function(e) {
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+        window.parent.postMessage({ lat: lat, lng: lng }, "*");
+    });
+</script>

@@ -1,0 +1,77 @@
+{% extends "base_classification.html" %}
+
+
+{% block content %}
+{{ super() }}
+<div class="input-group">
+    <label for="yearSelect">Select a year: <span id="yearValue">1992</span></label>
+    <select id="yearSelect" onchange="updateYear(this.value)">
+        <option value="1992">1992</option>
+        <option value="2002">2002</option>
+        <option value="2012">2012</option>
+        <option value="2018">2018</option>
+    </select>
+</div>
+
+<div style="width: 100%; height: 750px;">
+    <iframe id="mapFrame" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="100%" height="100%" frameborder="0"></iframe>
+</div>
+
+<script>
+    function updateYear(year) {
+        document.getElementById("yearValue").innerText = year;
+        document.getElementById("mapFrame").src = `{{ url_for('static', filename='') }}raster${year}.html`;
+        document.getElementById("infoImage").src = `{{ url_for('static', filename='') }}images/Areas${year}.png`;
+    }
+</script>
+<script>
+    window.addEventListener("message", function(event) {
+        const { lat, lng } = event.data;
+        if (lat && lng) {
+            const selectedYear = document.getElementById("yearSelect").value;
+            const formHtml = `
+                <form id="infoForm">
+                    <input type="hidden" name="lat" value="${lat}">
+                    <input type="hidden" name="lng" value="${lng}">
+                    <input type="hidden" name="year" value="${selectedYear}">
+                    <label>Name: <input type="text" name="name" required></label><br>
+                    <label>Email: <input type="email" name="email" required></label><br>
+                    <label>Comment:<br><textarea name="comment" required></textarea></label><br>
+                    <button type="submit">Submit</button>
+                    <button type="button" id="closeBtn">Cerrar</button>
+                </form>
+            `;
+
+            const formDiv = document.createElement("div");
+            formDiv.innerHTML = formHtml;
+            formDiv.style.position = "fixed";
+            formDiv.style.top = "20%";
+            formDiv.style.left = "30%";
+            formDiv.style.background = "white";
+            formDiv.style.padding = "20px";
+            formDiv.style.border = "1px solid black";
+            formDiv.style.zIndex = 1000;
+
+            document.body.appendChild(formDiv);
+            
+            document.getElementById("closeBtn").onclick = () => document.body.removeChild(formDiv);
+            document.getElementById("infoForm").onsubmit = async function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const response = await fetch("/submit_comment", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert("Data saved!");
+                    document.body.removeChild(formDiv);
+                } else {
+                    alert("Error saving data");
+                }
+            };
+        }
+    });
+</script>
+{% endblock %}
