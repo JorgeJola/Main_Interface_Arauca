@@ -597,10 +597,10 @@ def SpComments():
 
 # PostgreSQL 
 DB_CONFIG = {
-    'host': 'localhost',
-    'dbname': 'postgres',
-    'user': 'jorgeandresjolahernandez',
-    'password': '',
+    'host': 'dpg-cvr7f2vgi27c738n24q0-a',
+    'dbname': 'user_spatial_comments',
+    'user': 'jorgeandresjola',
+    'password': 'VI2TORlvj8WPUzxqeQwsdCOfIzkj2t10',
     'port': 5432  # o el puerto que uses
 }
 
