@@ -352,8 +352,7 @@ def create_folium_map(gdf, map_id):
     m.save(map_path)
     return map_path
 
-import plotly.graph_objects as go
-import pandas as pd
+
 
 @main.route('/change', methods=['GET', 'POST'])
 
