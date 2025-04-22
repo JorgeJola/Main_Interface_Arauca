@@ -21,6 +21,21 @@
     padding-top: 50px;
     box-sizing: border-box;
   }
+
+  .info-link {
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  .info-link a {
+    font-size: 16px;
+    color: #007BFF;
+    text-decoration: none;
+  }
+
+  .info-link a:hover {
+    text-decoration: underline;
+  }
 </style>
 {% endblock %}
 
@@ -48,8 +63,13 @@
 
         <button type="submit">Upload and Calculate</button>
     </form>
-
+    <div class="info-link">
+      <p>Learn more about <a href="https://drive.google.com/your-info-link" target="_blank">Vocation and Ambiental Offer</a>.</p>
+  </div>
     <img src="{{ url_for('static', filename='images/example.png') }}" alt="Example Image" 
          style="width: 45%; max-height: 600px; display: block; margin-top: 20px;">
+
+    <!-- Enlace con más información sobre "Vocación" y "Oferta Ambiental" -->
+    
 </div>
 {% endblock %}
