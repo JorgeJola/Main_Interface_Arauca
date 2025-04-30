@@ -25,6 +25,7 @@ import seaborn as sns
 import folium
 # Just To calculate the amount of memory consumed
 from memory_profiler import memory_usage
+import re
 
 main=Blueprint('main',__name__)
 UPLOAD_FOLDER = tempfile.mkdtemp()
@@ -186,7 +187,7 @@ def get_file_from_drive(folder_name, file_name):
 
 def clasify(input_path, municipality, segments):
     print("Iniciando procesamiento...")
-
+    name_file = re.search(r'([^/]+)\.tif$', input_path).group(1)
     # Leer las primeras 6 bandas del raster
     mem_before = memory_usage()[0]  ################## MEMORY TRACK
     with rasterio.open(input_path) as src:
@@ -295,9 +296,8 @@ def clasify(input_path, municipality, segments):
         gdf_final['class'] = model.predict(gdf_X)
         gdf_final['geometry'] = polygons.geometry
         gdf_final = gpd.GeoDataFrame(gdf_final)
-
         # Guardar como GeoJSON
-        geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{municipality}.geojson")
+        geojson_filename = os.path.join(RESULT_FOLDER, f"Class_{name_file}.geojson")
         gdf_final.to_file(geojson_filename, driver='GeoJSON')
 
         mem_after = memory_usage()[0]   ############ MEMORY TRACK
@@ -343,7 +343,7 @@ def create_folium_map(gdf, map_id):
                 'fillColor': color,
                 'color': 'black',
                 'weight': 0.5,
-                'fillOpacity': 0.8
+                'fillOpacity': 0.5
             }
         ).add_to(m)
     
@@ -451,7 +451,7 @@ def conflict():
 
         file1_path = os.path.join(UPLOAD_FOLDER, file1.filename)
         file1.save(file1_path)
-
+        name_file=re.search(r"(?<=Class_)(.*?)(?=\.geojson)", file1.filename).group()
         try:
             gdf1 = gpd.read_file(file1_path)
             if gdf1.empty:
@@ -556,7 +556,7 @@ def conflict():
 
 
             # Guardar resultado en GeoJSON
-            geojson_filename = os.path.join(RESULT_FOLDER, "Conflict.geojson")
+            geojson_filename = os.path.join(RESULT_FOLDER, f"Conflict_{name_file}.geojson")
             result.to_file(geojson_filename, driver='GeoJSON')
 
             return redirect(url_for('main.download_file_conflict', filename=os.path.basename(geojson_filename)))

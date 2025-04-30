@@ -1,4 +1,5 @@
 {% extends "base_image_extraction.html" %}
+
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
@@ -14,33 +15,66 @@
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   }
+
   #raster-container {
     margin-right: 25%;
     padding: 20px;
   }
+
   #mapid {
     height: 500px;
+  }
+
+  #noDataMessage {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 30px 50px;
+    border: 2px solid red;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    font-size: 20px;
+    color: red;
+    font-weight: bold;
+    z-index: 9999;
   }
 </style>
 <script>
   function updateRaster() {
-    var year = document.getElementById("yearRange").value;  // Obtiene el año seleccionado
-    var municipality = document.getElementById("municipalitySelect").value;  // Obtiene el municipio seleccionado
+    var year = document.getElementById("yearRange").value;
+    var municipality = document.getElementById("municipalitySelect").value;
 
-    // Actualiza el iframe con la nueva ruta según municipio y año
-    var iframeSrc = `/static/rasters/${municipality}/${year}.html`;
-    document.getElementById("mapFrame").src = iframeSrc;
-
-    // Habilita el botón de descarga
+    var iframe = document.getElementById("mapFrame");
     var downloadButton = document.getElementById("downloadBtn");
-    downloadButton.disabled = false;
-    downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';
+    var noDataMessage = document.getElementById("noDataMessage");
+
+    // Definimos si no hay datos
+    var noData = (municipality === "Tame" && year === "2015") ||
+                 (municipality === "Saravena" && ["1990", "2005", "2010", "2015"].includes(year));
+
+    if (noData) {
+      iframe.src = "";
+      iframe.style.display = "none";
+      noDataMessage.style.display = "block";
+      downloadButton.disabled = true;
+      downloadButton.href = "#";
+      downloadButton.classList.add("disabled");
+    } else {
+      iframe.src = `/static/rasters/${municipality}/${year}.html`;
+      iframe.style.display = "block";
+      noDataMessage.style.display = "none";
+      downloadButton.disabled = false;
+      downloadButton.href = '/rasters/' + municipality + '/' + year + '.tif';
+      downloadButton.classList.remove("disabled");
+    }
   }
 
-  // Esta función actualiza el año visible y llama a la función para actualizar el raster
   function updateYear(year) {
     document.getElementById("yearValue").innerText = year;
-    updateRaster();  // Actualiza el raster con el nuevo año
+    updateRaster();
   }
 </script>
 {% endblock %}
@@ -71,8 +105,15 @@
   </select>
 
   <br /><br />
-  <a id="downloadBtn" href="#" class="btn btn-primary" disabled>Download Raster</a>
+  <a id="downloadBtn" href="#" class="btn btn-primary disabled" disabled>Download Raster</a>
 </div>
+
+<!-- Mensaje de error centrado -->
+<div id="noDataMessage">
+  No imagery available for the selected municipality and year.
+</div>
+
+<!-- Contenedor del iframe -->
 <div style="width: 100%; height: 600px;">
   <iframe id="mapFrame" src="{{ url_for('static', filename='rasters/Arauca/1990.html') }}" 
           width="100%" height="130%" frameborder="0"></iframe>
