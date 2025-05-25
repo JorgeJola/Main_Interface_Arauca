@@ -71,4 +71,69 @@
         }
     }
 </script>
+<script>
+    const mapFrame1 = document.getElementById("mapFrame1");
+    const mapFrame2 = document.getElementById("mapFrame2");
+
+    // Escucha cuando uno de los mapas se mueve
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "mapMoved") {
+            const sourceFrame = event.source;
+            const targetFrame = sourceFrame === mapFrame1.contentWindow ? mapFrame2 : mapFrame1;
+
+            // Enviar el mensaje al otro iframe para sincronizar
+            targetFrame.contentWindow.postMessage({
+                type: "syncMap",
+                center: event.data.center,
+                zoom: event.data.zoom
+            }, "*");
+        }
+    });
+</script>
+<script>
+    let lastCenter = null;
+    let lastZoom = null;
+    
+    // Variables globales para guardar posición
+    let mapPositions = {
+        1: { center: [7.0, -70.75], zoom: 8 },
+        2: { center: [7.0, -70.75], zoom: 8 }
+    };
+
+    // Escuchar mensajes de los iframes (mapMoved)
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "mapMoved") {
+            // Guardar la posición actual para el iframe correspondiente
+            let sourceFrame = event.source;
+            let mapId = sourceFrame === mapFrame1.contentWindow ? 1 : 2;
+            mapPositions[mapId].center = event.data.center;
+            mapPositions[mapId].zoom = event.data.zoom;
+
+            // Sincronizar el otro mapa
+            let targetFrame = mapId === 1 ? mapFrame2 : mapFrame1;
+            targetFrame.contentWindow.postMessage({
+                type: "syncMap",
+                center: event.data.center,
+                zoom: event.data.zoom
+            }, "*");
+        }
+    });
+
+    // Cuando los iframes carguen, enviamos el centro y zoom guardados para mantener la posición
+    mapFrame1.addEventListener('load', () => {
+        mapFrame1.contentWindow.postMessage({
+            type: "syncMap",
+            center: mapPositions[1].center,
+            zoom: mapPositions[1].zoom
+        }, "*");
+    });
+
+    mapFrame2.addEventListener('load', () => {
+        mapFrame2.contentWindow.postMessage({
+            type: "syncMap",
+            center: mapPositions[2].center,
+            zoom: mapPositions[2].zoom
+        }, "*");
+    });
+</script>
 {% endblock %}

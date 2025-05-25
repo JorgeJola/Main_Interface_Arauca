@@ -54,11 +54,49 @@
     
 <div style="
     position: fixed; 
-    top: 10px; right: 10px; width: 150px; height: auto; 
-    background-color: white; border:2px solid grey; z-index:9999; font-size:8px;
-    padding: 10px; border-radius: 5px;">
-    <b>Class</b><br>
-    <i style="background:#761800;width:15px;height:15px;display:inline-block;"></i> Urban Zones<br><i style="background:#934741;width:15px;height:15px;display:inline-block;"></i> Industry and Commercial<br><i style="background:#4616d4;width:15px;height:15px;display:inline-block;"></i> Mining<br><i style="background:#cddc97;width:15px;height:15px;display:inline-block;"></i> Pastures<br><i style="background:#dbc382;width:15px;height:15px;display:inline-block;"></i> Agricultural Areas<br><i style="background:#3a6a00;width:15px;height:15px;display:inline-block;"></i> Forest<br><i style="background:#cafb4d;width:15px;height:15px;display:inline-block;"></i> Shrublands and Grassland<br><i style="background:#bfc5b9;width:15px;height:15px;display:inline-block;"></i> Little vegetation areas<br><i style="background:#6b5c8c;width:15px;height:15px;display:inline-block;"></i> Continental Wetlands<br><i style="background:#0127ff;width:15px;height:15px;display:inline-block;"></i> Continental Waters
+    top: 10px; 
+    right: 10px; 
+    width: 220px; 
+    height: auto; 
+    background-color: white; 
+    border: 2px solid grey; 
+    z-index: 9999; 
+    font-size: 8px;
+    padding: 10px; 
+    border-radius: 5px;
+    line-height: 1.5;
+">
+    <b>Class (Corine Land Cover Level 2)</b><br>
+    
+    <i style="background:#761800; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 1.1 Urban <br>
+    <i style="background:#934741; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 1.2 Industrial and commercial <br>
+    <i style="background:#4616d4; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 1.3 Mine, dump and construction <br>
+    <i style="background:#dbc382; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 2.4 Heterogeneous agricultural areas <br>
+    <i style="background:#cddc97; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 2.3 Pastures <br>
+    <i style="background:#3a6a00; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 3.1 Forest <br>
+    <i style="background:#cafb4d; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 3.2 Shrub or herbaceous vegetation <br>
+    <i style="background:#bfc5b9; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 3.3 Little Vegetated Areas <br>
+    <i style="background:#6b5c8c; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 4.1 Wetlands <br>
+    <i style="background:#0127ff; width:15px; height:15px; display:inline-block; margin-right:5px;"></i> 5.1 Water bodies
+</div>
+<div style="
+    position: fixed; 
+    bottom: 10px; 
+    left: 10px; 
+    width: 220px; 
+    height: auto; 
+    background-color: white; 
+    border: 2px solid grey; 
+    z-index: 9999; 
+    font-size: 10px;
+    padding: 10px; 
+    border-radius: 5px;
+    line-height: 1.5;
+">
+    <b>Information source</b><br>
+    USGS<br>
+    <b>Scale</b><br>
+    1:1.000.000<br>
 </div>
     
             <div class="folium-map" id="map_d663852a88f590836691ca58c1ab059c" ></div>
@@ -77,6 +115,7 @@
                     preferCanvas: false,
                 }
             );
+            
 
             
 
@@ -101,7 +140,7 @@
             image_overlay_73b50ef0af615d7f758c65ff20e4c7e4.addTo(map_d663852a88f590836691ca58c1ab059c);
         
 </script>
-</html>
+
 <script>
     // ... (todo tu código anterior)
 
@@ -112,3 +151,42 @@
         window.parent.postMessage({ lat: lat, lng: lng }, "*");
     });
 </script>
+<script>
+    const map = map_d663852a88f590836691ca58c1ab059c;
+
+    var syncing = false;
+
+    map.on('moveend', function() {
+        if (syncing) return;  // evita enviar postMessage si el movimiento fue programado
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        window.parent.postMessage({
+            type: "mapMoved",
+            center: [center.lat, center.lng],
+            zoom: zoom
+        }, "*");
+    });
+
+    window.addEventListener("message", function(event) {
+        if (event.data.type === "syncMap") {
+            syncing = true;  // activar bandera para evitar bucle
+            map.setView(event.data.center, event.data.zoom, { animate: false });
+            setTimeout(() => syncing = false, 100);  // desactivar la bandera después de un tiempo corto
+        }
+    });
+</script>
+<script>   
+    // Enviar la posición al padre cuando el mapa se mueva
+    var syncing = false;
+    map.on('moveend', function() {
+        if (syncing) return;
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        window.parent.postMessage({
+            type: "mapMoved",
+            center: [center.lat, center.lng],
+            zoom: zoom
+        }, "*");
+    });
+</script>
+</html>
