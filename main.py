@@ -460,7 +460,7 @@ def conflict():
             # Seleccionar el shapefile correcto
             if classification_type == "Vocation":
                 shapefile_path = os.path.join('static', 'vocation', 'vocation_Arauca.shp')
-                column_name = 'Vocacion'  # Nombre de la columna en vocación
+                column_name = 'Vocation'  # Nombre de la columna en vocación
             elif classification_type == "Ambiental offer":
                 shapefile_path = os.path.join('static', 'vocation', 'ambiental_offer.geojson')
                 column_name = 'Vocacion'  # Nombre de la columna en oferta ambiental
