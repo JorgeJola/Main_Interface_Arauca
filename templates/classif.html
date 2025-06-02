@@ -1,6 +1,11 @@
 {% extends "base_classification.html" %}
+
 {% block head %}
 {{ super() }}
+<!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Bootstrap Icons (para íconos bonitos) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 {% endblock %}
@@ -8,11 +13,22 @@
 {% block content %}
 {{ super() }}
 <div class="container d-flex justify-content-center align-items-center flex-column">
+
     <!-- Título principal -->
     <h1 class="text-center">LULC Classification</h1>
-    
-    <!-- Descripción -->
-    <p class="text-center">This workflow uses CORINE land cover level 2 (IDEAM) and FAO delineations for land use classification.</p>
+
+    <!-- Descripción + Tooltip -->
+    <div class="text-center mb-3">
+        <p>
+            This workflow uses CORINE land cover level 2 (IDEAM) and FAO delineations for land use classification.
+            <i 
+              class="bi bi-info-circle-fill text-primary" 
+              data-bs-toggle="tooltip" 
+              data-bs-placement="right" 
+              title="Accuracy: 70.0% , F1-score: 67% Hyperparameters: N estimators=200 Max depth=20 Random state=0"
+              style="cursor: pointer;"></i>
+        </p>
+    </div>
 
     {% if success %}
         <p class="text-center">Classification completed successfully!</p>
@@ -37,14 +53,30 @@
                     <option value="Tame">Tame</option>
                 </select>
             </div>
-            <!-- Input for the number of segments placed above the button -->
             <div class="mb-3">
                 <label for="segments" class="form-label">Number of Segments:</label>
                 <input type="number" id="segments" name="segments" min="10" max="100000" step="1" value="200" required>
             </div>
-                
+
             <button type="submit" class="btn btn-success">Process</button>
         </form>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Bootstrap JS + Popper -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+
+<!-- Activar tooltips -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  });
+</script>
 {% endblock %}

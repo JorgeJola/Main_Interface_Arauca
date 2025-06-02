@@ -26,6 +26,8 @@ import folium
 # Just To calculate the amount of memory consumed
 from memory_profiler import memory_usage
 import re
+from branca.element import Template, MacroElement
+from folium.plugins import DualMap
 
 main=Blueprint('main',__name__)
 UPLOAD_FOLDER = tempfile.mkdtemp()
@@ -109,6 +111,7 @@ def download_file(municipality, year):
 #########################################################################################################
 ##################################### CLASSIFICATION ####################################################
 #########################################################################################################
+
 @main.route('/classif', methods=["GET", "POST"])
 def classif():
 
@@ -311,15 +314,16 @@ def download_file_classification(filename):
     return send_file(file_path, as_attachment=True)
 
 
+
 #########################################################################################################
 ##################################### Analysis ##########################################################
 #########################################################################################################
 
+# Diccionario de colores
 class_colors = {  
     'Urban Zones': '#761800',
     'Industry and Comerciall': '#934741',
     'Mining': '#4616d4',
-    'Pastures': '#e8d610',
     'Pastures': '#cddc97',
     'Agricultural Areas': '#dbc382',
     'Forest': '#3a6a00',
@@ -329,73 +333,106 @@ class_colors = {
     'Continental Waters': '#0127ff'
 }
 
-def create_folium_map(gdf, map_id):
-    gdf = gdf.to_crs(epsg=4326)
-    # Crear un mapa base centrado en el centro de la geometría
-    m = folium.Map(location=[gdf.geometry.centroid.y.mean(), gdf.geometry.centroid.x.mean()], zoom_start=10)
-    
-    for _, row in gdf.iterrows():
-        # Asignar el color correspondiente de la paleta según la clase
-        color = class_colors.get(row['class'], '#808080')  # color predeterminado si no se encuentra en la paleta
-        folium.GeoJson(
-            row['geometry'],
-            style_function=lambda feature, color=color: {
-                'fillColor': color,
-                'color': 'black',
-                'weight': 0.5,
-                'fillOpacity': 0.5
-            }
-        ).add_to(m)
-    
-    # Guardar el mapa como archivo HTML
-    map_path = os.path.join('static', f'{map_id}.html')
-    m.save(map_path)
+
+
+def create_synchronized_maps(gdf1, gdf2, map_id='map_sync'):
+    # Convertir a EPSG:4326 si es necesario
+    if gdf1.crs.to_string() != "EPSG:4326":
+        gdf1 = gdf1.to_crs(epsg=4326)
+    if gdf2.crs.to_string() != "EPSG:4326":
+        gdf2 = gdf2.to_crs(epsg=4326)
+
+    # Calcular centro del mapa
+    center = gdf1.unary_union.centroid.coords[:][0][::-1]
+
+    # Crear mapa dual
+    dual_map = DualMap(location=center, zoom_start=12)
+
+    # Unir clases únicas
+    all_classes = sorted(set(gdf1['class'].unique()).union(set(gdf2['class'].unique())))
+
+    # Añadir geometrías al primer mapa
+    folium.GeoJson(
+        gdf1,
+        name="LULC 1",
+        style_function=lambda feature: {
+            'fillColor': class_colors.get(feature['properties']['class'], '#000000'),
+            'color': 'black',
+            'weight': 0.5,
+            'fillOpacity': 0.7,
+        },
+        tooltip=folium.GeoJsonTooltip(fields=['class']),
+    ).add_to(dual_map.m1)
+
+    # Añadir geometrías al segundo mapa
+    folium.GeoJson(
+        gdf2,
+        name="LULC 2",
+        style_function=lambda feature: {
+            'fillColor': class_colors.get(feature['properties']['class'], '#000000'),
+            'color': 'black',
+            'weight': 0.5,
+            'fillOpacity': 0.7,
+        },
+        tooltip=folium.GeoJsonTooltip(fields=['class']),
+    ).add_to(dual_map.m2)
+
+    # Crear leyenda con tus colores
+    legend_html = """
+    <div style='position: fixed; 
+         top: 10px; right: 10px; width: 200px; height: auto; 
+         z-index:9999; font-size:12px;
+         background-color:white; padding:10px; border:2px solid grey;'>
+         <b>LU/LC Classes</b><br>
+    """
+    for cls in all_classes:
+        color = class_colors.get(cls, "#000000")
+        legend_html += f"<div style='margin-bottom:5px;'><i style='background:{color};width:12px;height:12px;display:inline-block;margin-right:5px;'></i>{cls}</div>"
+    legend_html += "</div>"
+
+    # Agregar leyenda al HTML
+    dual_map.get_root().html.add_child(folium.Element(legend_html))
+
+    # Guardar mapa
+    map_path = os.path.join("static", "map1.html")
+    dual_map.save(map_path)
+
     return map_path
 
 
-
 @main.route('/change', methods=['GET', 'POST'])
-
 def change():
     graph_url = None
-    map1_url = None 
-    map2_url = None 
+    map_sync_url = None  # Aquí es donde debe iniciarse
+
     if request.method == 'POST':
-        # Verificar que los archivos se recibieron
         if 'file1' not in request.files or 'file2' not in request.files:
             return 'No files part'
 
         file1 = request.files['file1']
         file2 = request.files['file2']
 
-        # Verificar si los archivos fueron subidos correctamente
         if file1 and file2:
             upload_folder = UPLOAD_FOLDER
             file1_path = os.path.join(upload_folder, file1.filename)
             file2_path = os.path.join(upload_folder, file2.filename)
-            print(f"Saving file1: {file1.filename} to {file1_path}")  # Depuración
-            print(f"Saving file2: {file2.filename} to {file2_path}")  # Depuración
 
             file1.save(file1_path)
             file2.save(file2_path)
-            
 
-            gdf1 = gpd.read_file(os.path.join(file1_path))
-            gdf2 = gpd.read_file(os.path.join(file2_path))
+            gdf1 = gpd.read_file(file1_path)
+            gdf2 = gpd.read_file(file2_path)
 
-            map1 = create_folium_map(gdf1,'map1')
-            map2 = create_folium_map(gdf2,'map2')
+            map_sync_url = create_synchronized_maps(gdf1, gdf2, map_id='map_sync')
 
-            # Verificar CRS y transformar si es necesario
             if gdf1.crs.to_string() == "EPSG:4326":
                 gdf1 = gdf1.to_crs(epsg=32618)
 
             if gdf2.crs.to_string() == "EPSG:4326":
                 gdf2 = gdf2.to_crs(epsg=32618)
 
-            # Calcular el área
-            gdf1["Area"] = gdf1.geometry.area / 1000000
-            gdf2["Area"] = gdf2.geometry.area / 1000000
+            gdf1["Area"] = gdf1.geometry.area / 1e6
+            gdf2["Area"] = gdf2.geometry.area / 1e6
 
             area_por_clase1 = gdf1.groupby("class")["Area"].sum().reset_index()
             area_por_clase2 = gdf2.groupby("class")["Area"].sum().reset_index()
@@ -404,9 +441,9 @@ def change():
             df_area["diff"] = df_area["Area_2012"] - df_area["Area_1992"]
             df_area["Change"] = df_area["diff"].apply(lambda x: "Increase" if x > 0 else "Decrease")
 
-            # Graficar el cambio de área
+            # Gráfico
             plt.figure(figsize=(10, 6))
-            sns.barplot(x="class", y="diff", data=df_area, hue="Change", palette=["green","red"])
+            sns.barplot(x="class", y="diff", data=df_area, hue="Change", palette=["#67a9cf", "#ef8a62"])
             plt.axhline(0, color="black", linestyle="--")
             plt.xlabel("Class")
             plt.ylabel("Area (Km²)")
@@ -419,15 +456,10 @@ def change():
             plt.savefig(graph_path)
             plt.close()
 
-            # Log de la ruta del gráfico
-            print(f"Graph saved at: {graph_path}")
-
-            # Generar la URL para el gráfico
             graph_url = url_for('static', filename='images/area_change.png')
-            map1_url = url_for('static', filename='map1.html')
-            map2_url = url_for('static', filename='map2.html')
 
-    return render_template('change.html', map1_url=map1_url, map2_url=map2_url, graph_url=graph_url)
+    return render_template('change.html', map_url=map_sync_url, graph_url=graph_url)
+
 
 
 #########################################################################################################
@@ -463,7 +495,7 @@ def conflict():
                 column_name = 'Vocation'  # Nombre de la columna en vocación
             elif classification_type == "Ambiental offer":
                 shapefile_path = os.path.join('static', 'vocation', 'ambiental_offer.geojson')
-                column_name = 'Vocacion'  # Nombre de la columna en oferta ambiental
+                column_name = 'Vocation'  # Nombre de la columna en oferta ambiental
             else:
                 return "Error: Invalid classification type", 400
 
@@ -495,24 +527,24 @@ def conflict():
             # Función para asignar conflicto
             def assign_conflict_vocation (row):
                 conflict_mapping = {
-                    "Agrícola": {"High": ["11", "12", "13", "31", "33", "41", "51"],
+                    "Agricultural": {"High": ["11", "12", "13", "31", "33", "41", "51"],
                                  "Moderate": ["32", "22"],
                                  "No Conflict": ["21", "23", "24"]},
-                    "Ganadera": {"High": ["11", "12", "13", "31", "41", "51"],
+                    "Livestock": {"High": ["11", "12", "13", "31", "41", "51"],
                                  "Moderate": ["21", "23", "24", "32", "33"],
                                  "No Conflict": ["22"]},
-                    "Agroforestal": {"High": ["11", "12", "13", "41", "51"],
+                    "Agroforestry": {"High": ["11", "12", "13", "41", "51"],
                                      "Moderate": ["21", "22", "33"],
                                      "No Conflict": ["23", "24", "31", "32"]},
-                    "Forestal": {"High": ["11", "12", "13", "21", "22", "23", "24"],
+                    "Forestry": {"High": ["11", "12", "13", "21", "22", "23", "24"],
                                  "Moderate": ["33"],
                                  "No Conflict": ["31", "32", "41", "51"]},
-                    "Conservación de Suelos": {"High": ["11", "12", "13", "41", "51"],
+                    "Soil Conservation": {"High": ["11", "12", "13", "41", "51"],
                                                "Moderate": ["21", "22", "33"],
                                                "No Conflict": ["23", "24", "31", "32"]},
-                    "Cuerpo de agua": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33"],
+                    "Water body": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33"],
                                        "No Conflict": ["41", "51"]},
-                    "Zonas urbanas": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33", "41", "51"]}
+                    "Urban areas": {"High": ["11", "12", "13", "21", "22", "23", "24", "31", "32", "33", "41", "51"]}
                 }
                 for level, values in conflict_mapping.get(row[column_name], {}).items():
                     if row["Level 2"] in values:
@@ -520,27 +552,27 @@ def conflict():
                 return "Unknown"
             def assign_conflict_enviro (row):
                 conflict_mapping = {
-                    "Agrícola": {"High": ["11","12","31","51"],
+                    "Agricultural": {"High": ["11","12","31","51"],
                                  "Moderate": ["13","32","33","41"],
                                  "No Conflict": ["21","23","24","22"]},
-                    "Ganadera": {"High": ["11","12","31","51"],
+                    "Livestock": {"High": ["11","12","31","51"],
                                  "Moderate": ["13","32","33","41"],
                                  "No Conflict": ["21","23","24","22"]},
-                    "Agroforestal": {"High": ["11","12","31","51"],
+                    "Agroforestry": {"High": ["11","12","31","51"],
                                      "Moderate": ["13","32","33","41"],
                                      "No Conflict": ["21","23","24","22"]},
-                    "Forestal": {"High": ["11","12","13","21","23","24"],
+                    "Forestry": {"High": ["11","12","13","21","23","24"],
                                  "Moderate": ["33"],
                                  "No Conflict": ["31","32","41","51"]},
-                    "Áreas de Protección Legal": {"High": ["11","12","13","21","23","24","22"],
+                    "Legal Protection Areas": {"High": ["11","12","13","21","23","24","22"],
                                                "Moderate": [],
                                                "No Conflict": ["31","32","33","41","51"]},
-                    "Áreas Prioritarias para la Conservación": {"High": ["11","12","13","21","23","24","22"],
+                    "Soil Conservation": {"High": ["11","12","13","21","23","24","22"],
                                                "Moderate": ["33"],
                                                "No Conflict": ["31","32","41","51"]},
-                    "Cuerpo de agua": {"High": ["11","12","13","21","23","24","22"],
+                    "Water body": {"High": ["11","12","13","21","23","24","22"],
                                        "No Conflict": ["31","32","33","41","51"]},
-                    "Zonas urbanas": {"High": ["13","31","32","33"],
+                    "Urban areas": {"High": ["13","31","32","33"],
                                                "Moderate": ["21","22","23","24","41","51"],
                                                "No Conflict": ["11","12"]}
                 }

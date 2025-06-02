@@ -1,193 +1,139 @@
-{% extends "base_conflict.html" %}
-
+{% extends "viz.html" %}
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='extended_beauty.css') }}" />
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<style>
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding-top: 50px;
-    box-sizing: border-box;
-  }
-
-  .info-link {
-    margin-top: 20px;
-    text-align: center;
-  }
-
-  .info-link a {
-    font-size: 16px;
-    color: #007BFF;
-    text-decoration: none;
-  }
-
-  .info-link a:hover {
-    text-decoration: underline;
-  }
-
-  form {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-    margin-top: 20px;
-  }
-
-  form label {
-    font-weight: bold;
-  }
-
-  form input[type="file"],
-  form select {
-    width: 250px;
-    padding: 5px;
-  }
-
-  form button {
-    margin-top: 10px;
-    padding: 8px 16px;
-    background-color: #007BFF;
-    color: white;
-    border: none;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-
-  form button:hover {
-    background-color: #0056b3;
-  }
-
-  .maps-section {
-    width: 100%;
-    padding: 0 2%;
-    box-sizing: border-box;
-    margin-top: 10px;
-  }
-
-  .map-titles {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 1%;
-    font-weight: bold;
-    margin-bottom: 5px;
-  }
-
-  .map-container {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    height: 600px;
-  }
-
-  .map-container iframe {
-    width: 48%;
-    height: 100%;
-    border: none;
-  }
-
-  .class-section {
-    margin-top: 30px;
-    padding: 0 2%;
-  }
-
-  .class-section h3 {
-    margin-bottom: 5px;
-  }
-
-  .badge-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 15px;
-  }
-
-  .badge {
-    padding: 5px 10px;
-    border-radius: 5px;
-    color: white;
-    font-size: 14px;
-  }
-</style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-  <h2>LULC Conflict Assessment</h2>
-  <p>Please set the name of the variable classified as 'class'</p>
+{{ super() }}
+<div style="display: flex; justify-content: space-between; width: 100%;">
+    <!-- Primer filtro de año -->
+    <div class="input-group">
+        <label for="yearSelect1">Select a year for Map 1: <span id="yearValue1">1992</span></label>
+        <select id="yearSelect1" onchange="updateMaps()">
+            <option value="1992">1992</option>
+            <option value="2002">2002</option>
+            <option value="2012">2012</option>
+            <option value="2018">2018</option>
+        </select>
+    </div>
 
-  {% if success is not none %}
-      <p style="color: green;">{{ success }}</p>
-  {% elif error is not none %}
-      <p style="color: red;">{{ error }}</p>
-  {% endif %}
-
-  <form method="POST" enctype="multipart/form-data">
-    <label for="classification-type">Select LULC Assignment:</label>
-    <select name="classification-type" id="classification-type" required>
-        <option value="Vocation">Vocation</option>
-        <option value="Ambiental offer">Ambiental offer</option>
-    </select>
-
-    <label for="file1">Upload GeoJson (.geojson):</label>
-    <input type="file" name="file1" accept=".geojson" required>
-
-    <button type="submit">Upload and Calculate</button>
-  </form>
-
-  <div class="info-link">
-    <p>Learn more about 
-      <a href="https://drive.google.com/file/d/1eIMmVh5MFx87uPwzjuZLTpnIhih54RG7/view?usp=sharing" target="_blank">
-        Vocation and Ambiental Offer
-      </a>.
-    </p>
-  </div>
+    <!-- Segundo filtro de año alineado a la derecha -->
+    <div class="input-group">
+        <label for="yearSelect2">Select a year for Map 2: <span id="yearValue2">1992</span></label>
+        <select id="yearSelect2" onchange="updateMaps()">
+            <option value="1992">1992</option>
+            <option value="2002">2002</option>
+            <option value="2012">2012</option>
+            <option value="2018">2018</option>
+        </select>
+    </div>
 </div>
 
-<!-- NUEVA SECCIÓN DE CLASES -->
-<div class="class-section">
-  <h3>Vocation Classes</h3>
-  <div class="badge-container">
-    <span class="badge" style="background-color: #5ab4ac;">Agroforestry</span>
-    <span class="badge" style="background-color: #377eb8;">Water body</span>
-    <span class="badge" style="background-color: #a1d76a;">Agricultural</span>
-    <span class="badge" style="background-color: #e9a3c9;">Soil Conservation</span>
-    <span class="badge" style="background-color: #7fbf7b;">Forestry</span>
-    <span class="badge" style="background-color: #fc8d59;">Livestock</span>
-    <span class="badge" style="background-color: #d8b365;">Urban areas</span>
-  </div>
-
-  <h3>Ambiental Offer Classes</h3>
-  <div class="badge-container">
-    <span class="badge" style="background-color: #5ab4ac;">Agroforestry</span>
-    <span class="badge" style="background-color: #377eb8;">Water body</span>
-    <span class="badge" style="background-color: #a1d76a;">Agricultural</span>
-    <span class="badge" style="background-color: #e9a3c9;">Soil Conservation</span>
-    <span class="badge" style="background-color: #7fbf7b;">Forestry</span>
-    <span class="badge" style="background-color: #756bb1;">Legal Protection Areas</span>
-    <span class="badge" style="background-color: #fc8d59;">Livestock</span>
-    <span class="badge" style="background-color: #d8b365;">Urban areas</span>
-  </div>
+<div style="display: flex; justify-content: space-between; width: 100%; height: 600px;">
+    <!-- Primer mapa -->
+    <iframe id="mapFrame1" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="48%" height="100%" frameborder="0"></iframe>
+    <!-- Segundo mapa -->
+    <iframe id="mapFrame2" src="{{ url_for('static', filename='raster1992.html') }}" 
+            width="48%" height="100%" frameborder="0"></iframe>
 </div>
 
-<!-- MAPAS -->
-<div class="maps-section">
-  <div class="map-titles">
-    <span>Vocation Map</span>
-    <span>Ambiental Offer Map</span>
-  </div>
-  <div class="map-container">
-    <iframe id="mapFrame1" src="{{ url_for('static', filename='vocation/vocation.html') }}"></iframe>
-    <iframe id="mapFrame2" src="{{ url_for('static', filename='vocation/amb_offer.html') }}"></iframe>
-  </div>
-</div>
+<!-- Div para cargar el archivo HTML de cambio de uso del suelo -->
+<div id="changeMap"></div>
+
+<script>
+    function updateMaps() {
+        // Obtener los valores seleccionados de los años
+        var year1 = document.getElementById("yearSelect1").value;
+        var year2 = document.getElementById("yearSelect2").value;
+
+        // Actualizar los mapas con los años correctos
+        document.getElementById("yearValue1").innerText = year1;
+        document.getElementById("mapFrame1").src = `{{ url_for('static', filename='raster') }}${year1}.html`;
+        document.getElementById("yearValue2").innerText = year2;
+        document.getElementById("mapFrame2").src = `{{ url_for('static', filename='raster') }}${year2}.html`;
+        // Intercambiar los valores si year1 es mayor que year2
+        if (parseInt(year1) > parseInt(year2)) {
+            // Intercambiar los valores de los años
+            var temp = year1;
+            year1 = year2;
+            year2 = temp;
+        }
+
+        // Mostrar el archivo de cambio de uso del suelo si los años son diferentes
+        if (year1 !== year2) {
+            var changeMapFile = `Change_${year1}_${year2}.html`;
+            document.getElementById("changeMap").innerHTML = `<iframe src="{{ url_for('static', filename='images/') }}${changeMapFile}" width="100%" height="600px" frameborder="0"></iframe>`;
+        } else {
+            document.getElementById("changeMap").innerHTML = '';  // No mostrar nada si los años son iguales
+        }
+    }
+</script>
+<script>
+    const mapFrame1 = document.getElementById("mapFrame1");
+    const mapFrame2 = document.getElementById("mapFrame2");
+
+    // Escucha cuando uno de los mapas se mueve
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "mapMoved") {
+            const sourceFrame = event.source;
+            const targetFrame = sourceFrame === mapFrame1.contentWindow ? mapFrame2 : mapFrame1;
+
+            // Enviar el mensaje al otro iframe para sincronizar
+            targetFrame.contentWindow.postMessage({
+                type: "syncMap",
+                center: event.data.center,
+                zoom: event.data.zoom
+            }, "*");
+        }
+    });
+</script>
+<script>
+    let lastCenter = null;
+    let lastZoom = null;
+    
+    // Variables globales para guardar posición
+    let mapPositions = {
+        1: { center: [7.0, -70.75], zoom: 8 },
+        2: { center: [7.0, -70.75], zoom: 8 }
+    };
+
+    // Escuchar mensajes de los iframes (mapMoved)
+    window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "mapMoved") {
+            // Guardar la posición actual para el iframe correspondiente
+            let sourceFrame = event.source;
+            let mapId = sourceFrame === mapFrame1.contentWindow ? 1 : 2;
+            mapPositions[mapId].center = event.data.center;
+            mapPositions[mapId].zoom = event.data.zoom;
+
+            // Sincronizar el otro mapa
+            let targetFrame = mapId === 1 ? mapFrame2 : mapFrame1;
+            targetFrame.contentWindow.postMessage({
+                type: "syncMap",
+                center: event.data.center,
+                zoom: event.data.zoom
+            }, "*");
+        }
+    });
+
+    // Cuando los iframes carguen, enviamos el centro y zoom guardados para mantener la posición
+    mapFrame1.addEventListener('load', () => {
+        mapFrame1.contentWindow.postMessage({
+            type: "syncMap",
+            center: mapPositions[1].center,
+            zoom: mapPositions[1].zoom
+        }, "*");
+    });
+
+    mapFrame2.addEventListener('load', () => {
+        mapFrame2.contentWindow.postMessage({
+            type: "syncMap",
+            center: mapPositions[2].center,
+            zoom: mapPositions[2].zoom
+        }, "*");
+    });
+</script>
 {% endblock %}
