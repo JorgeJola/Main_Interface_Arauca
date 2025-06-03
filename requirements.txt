@@ -16,4 +16,4 @@ matplotlib
 seaborn
 psycopg2-binary
 memory_profiler
-
+plotly
