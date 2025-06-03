@@ -68,6 +68,12 @@
         <img src="{{ graph_url }}" alt="Change in Area by Class">
     </div>
     {% endif %}
+    {% if sankey_url %}
+    <div class="sankey">
+        <h3>Change Flow (Sankey Diagram)</h3>
+        <iframe src="{{ sankey_url }}" width="100%" height="600px"></iframe>
+    </div>
+    {% endif %}
 </div>
 
 

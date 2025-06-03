@@ -22,9 +22,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 import seaborn as sns
+import plotly.graph_objects as go
+from plotly.offline import plot
 import folium
 # Just To calculate the amount of memory consumed
 from memory_profiler import memory_usage
+from collections import defaultdict
 import re
 from branca.element import Template, MacroElement
 from folium.plugins import DualMap
@@ -403,7 +406,8 @@ def create_synchronized_maps(gdf1, gdf2, map_id='map_sync'):
 @main.route('/change', methods=['GET', 'POST'])
 def change():
     graph_url = None
-    map_sync_url = None  # Aquí es donde debe iniciarse
+    sankey_url = None
+    map_sync_url = None  
 
     if request.method == 'POST':
         if 'file1' not in request.files or 'file2' not in request.files:
@@ -431,6 +435,7 @@ def change():
             if gdf2.crs.to_string() == "EPSG:4326":
                 gdf2 = gdf2.to_crs(epsg=32618)
 
+            # Bar plot
             gdf1["Area"] = gdf1.geometry.area / 1e6
             gdf2["Area"] = gdf2.geometry.area / 1e6
 
@@ -440,8 +445,7 @@ def change():
             df_area = pd.merge(area_por_clase1, area_por_clase2, on="class", suffixes=('_1992', '_2012'))
             df_area["diff"] = df_area["Area_2012"] - df_area["Area_1992"]
             df_area["Change"] = df_area["diff"].apply(lambda x: "Increase" if x > 0 else "Decrease")
-
-            # Gráfico
+            
             plt.figure(figsize=(10, 6))
             sns.barplot(x="class", y="diff", data=df_area, hue="Change", palette=["#67a9cf", "#ef8a62"])
             plt.axhline(0, color="black", linestyle="--")
@@ -457,14 +461,114 @@ def change():
             plt.close()
 
             graph_url = url_for('static', filename='images/area_change.png')
+            
+            # Sankey plot
+            inter=gpd.overlay(gdf1,gdf2,how='intersection')
+            if inter.crs.is_geographic:
+                inter = inter.to_crs(epsg=3116)
+            inter['area']=inter.geometry.area/1e6
+            inter = inter.rename(columns={'class_1': 'Date1','class_2':'Date2'})
+            
+            label_set = set()
+            links = []
 
-    return render_template('change.html', map_url=map_sync_url, graph_url=graph_url)
+            def add_links(inter, col_from, col_to):
+                temp = inter.groupby([col_from, col_to])["area"].sum().reset_index()
+                for _, row in temp.iterrows():
+                    source = f"{col_from}_{row[col_from]}"
+                    target = f"{col_to}_{row[col_to]}"
+                    value = row["area"]
+                    label_set.update([source, target])
+                    links.append((source, target, value))
+
+            add_links(inter, "Date1", "Date2")
+            
+            # Asignar índices
+            labels = list(label_set)
+            label_to_index = {label: i for i, label in enumerate(labels)}
+
+            source = [label_to_index[s] for s, t, v in links]
+            target = [label_to_index[t] for s, t, v in links]
+            value = [v for s, t, v in links]
+
+            # Diccionario de colores
+            color_dict = {
+                "1.1 Urban": "#761800",
+                "1.2 Industrial and commercial": "#934741",
+                "1.3 Mine, dump and construction": "#4616d4",
+                "1.4 Artificial non-agricultural vegetated areas": "#A600CC",
+                "2.1 Arable Land": "#e8d610",
+                "2.2 Permanent crops": "#F2CCAA",
+                "Pastures": "#cddc97",
+                "2.4 Shrublands and Grassland": "#dbc382",
+                "Forest": "#3a6a00",
+                "Shrublands and Grassland": "#cafb4d",
+                "3.3 Little Vegetated Areas": "#bfc5b9",
+                "4.1 Wetlands": "#6b5c8c",
+                "5.1 Water bodies": "#0127ff"
+            }
+            display_labels = [label.split("_", 1)[1] for label in labels]
+
+            # Colores para los nodos
+            colors = []
+            for label in labels:
+                class_name = label.split("_", 1)[1].strip()
+                colors.append(color_dict.get(class_name, "gray"))
+
+            def hex_to_rgba(hex_color, alpha=0.6):
+                hex_color = hex_color.lstrip("#")
+                r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                return f"rgba({r},{g},{b},{alpha})"
+
+            missing_classes = set()
+            for s, t, v in links:
+                class_name = s.split("_", 1)[1].strip()
+                if class_name not in color_dict:
+                    missing_classes.add(class_name)
+
+            link_colors = []
+            for s, t, v in links:
+                class_name = s.split("_", 1)[1].strip()
+                hex_color = color_dict.get(class_name, "#999999")
+                link_colors.append(hex_to_rgba(hex_color))
+            
+            # Crear el Sankey plot
+            fig = go.Figure(data=[go.Sankey(
+                arrangement="snap",
+                node=dict(
+                    pad=15,
+                    thickness=20,
+                    line=dict(color="black", width=0.5),
+                    label=display_labels,
+                    color=colors
+                ),
+                link=dict(
+                    source=source,
+                    target=target,
+                    value=value,
+                    color=link_colors
+                )
+            )])
+
+            fig.update_layout(
+                title_text="Sankey plot Date 1 and Date 2",
+                font_size=12
+            )
+            # Guardar como HTML
+            graph2_path = os.path.join('static', 'images', 'sankey_change.html')
+            fig.write_html(graph2_path)
+            sankey_url = url_for('static', filename='images/sankey_change.html')
+            
+
+    return render_template('change.html', map_url=map_sync_url, graph_url=graph_url, sankey_url=sankey_url)
+
 
 
 
 #########################################################################################################
 ##################################### Conflict ##########################################################
 #########################################################################################################
+
 @main.route('/download3/<filename>')
 def download_file_conflict(filename):
     file_path = os.path.join(RESULT_FOLDER, filename)
@@ -474,6 +578,9 @@ def download_file_conflict(filename):
 
 @main.route('/conflict', methods=['GET', 'POST'])
 def conflict():
+    bar_url=None
+    map_url = None
+    download_url=None
     if request.method == 'POST':
         file1 = request.files.get('file1')
         classification_type = request.form.get('classification-type')  # Leer selección del usuario
@@ -590,8 +697,90 @@ def conflict():
             # Guardar resultado en GeoJSON
             geojson_filename = os.path.join(RESULT_FOLDER, f"Conflict_{name_file}.geojson")
             result.to_file(geojson_filename, driver='GeoJSON')
+            
+            # Create Map
+            m = folium.Map(location=[6.5, -70.8], zoom_start=8.1)
+            color_dict = {
+                "High": "red",
+                "Moderate": "yellow",
+                "No Conflict": "green"
+            }
+            def style_function(feature):
+                conflict_level = feature["properties"].get("Conflict_Level", "No Conflict")
+                return {
+                    "fillColor": color_dict.get(conflict_level, "gray"),
+                    "color": "black",
+                    "weight": 1,
+                    "fillOpacity": 1,
+                }
+            folium.GeoJson(
+                result.to_json(),  # ✅ Convierte correctamente a GeoJSON
+                style_function=style_function,
+                name="Conflict"
+            ).add_to(m)
+            
+            legend_html = """
+            <div style='position: fixed; 
+                top: 10px; right: 10px; width: 120px; height: 100px; 
+                border:2px solid grey; z-index:9999; font-size:12px;
+                background-color: white;
+                padding: 10px;'>
+                <strong>Conflict</strong><br>
+                <i style="background:red; width:10px; height:10px; display:inline-block;"></i> High<br>
+                <i style="background:yellow; width:10px; height:10px; display:inline-block;"></i> Moderate<br>
+                <i style="background:green; width:10px; height:10px; display:inline-block;"></i> No Conflict
+            </div>
+            """
+            # Bar plot
+            gdf=result
+            if gdf.crs.is_geographic:
+                gdf = gdf.to_crs(epsg=3116)
+            gdf['area'] = gdf.geometry.area / 1e6
+            # The code `area_conf` is not valid Python syntax. It seems like it might be a placeholder
+            # or a comment in the code. It does not perform any specific action or operation in
+            # Python.
+            area_conf = gdf.groupby('Conflict_Level')['area'].sum().reset_index()
+            area_conf = area_conf.sort_values('area', ascending=False)
+            def asignar_color(area):
+                if area < area_conf['area'].quantile(0.33):
+                    return '#ffeda0'  # amarillo claro
+                elif area < area_conf['area'].quantile(0.66):
+                    return '#feb24c'  # naranja
+                else:
+                    return '#f03b20'  # rojo fuerte
 
-            return redirect(url_for('main.download_file_conflict', filename=os.path.basename(geojson_filename)))
+            area_conf['color'] = area_conf['area'].apply(asignar_color)
+            fig = go.Figure()
+
+            fig.add_trace(go.Bar(
+                x=area_conf['Conflict_Level'],
+                y=area_conf['area'],
+                marker_color=area_conf['color'],
+                text=area_conf['area'].round(2),
+                textposition='inside'
+            ))
+
+            fig.update_layout(
+                yaxis_title='Area (Km²)',
+                xaxis_tickangle=-45,
+                margin=dict(t=50, b=150),
+                yaxis=dict(title_font=dict(size=14)),
+                xaxis=dict(title_font=dict(size=14)),
+                uniformtext_minsize=8,
+                uniformtext_mode='hide',
+            )
+
+            bar_path = os.path.join('static', 'images', 'bar_conflict.html')
+            fig.write_html(bar_path)
+            
+            bar_url = url_for('static', filename='images/bar_conflict.html')
+            m.get_root().html.add_child(folium.Element(legend_html))
+            map_path = os.path.join('static', 'images', 'map_conflict.html')
+            m.save(map_path)
+            map_url = url_for('static', filename='images/map_conflict.html')
+            download_url = url_for('main.download_file_conflict', filename=os.path.basename(geojson_filename))
+            
+            return render_template('conflict.html', conflict_map_url=map_url, download_url=download_url,bar_url=bar_url)
 
         except Exception as e:
             print(f"Error processing shapefiles: {e}")

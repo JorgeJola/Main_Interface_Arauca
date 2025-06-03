@@ -143,6 +143,12 @@
 
     <button type="submit">Upload and Calculate</button>
   </form>
+  {% if conflict_map_url %}
+  <br>
+  <a href="{{ download_url }}" download>Download File</a>
+  <iframe src="{{ conflict_map_url }}" width="100%" height="600px"></iframe>
+  <iframe src="{{ bar_url }}" width="100%" height="600px"></iframe>
+  {% endif %}
 
   <div class="info-link">
     <p><strong>Vocation:</strong> Is the most appropriate use of the land based on its natural capacity to support such use, with sustainability characteristics, evaluated on a biophysical basis (UPRA).</p>
