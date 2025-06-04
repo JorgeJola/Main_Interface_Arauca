@@ -323,18 +323,20 @@ def download_file_classification(filename):
 #########################################################################################################
 
 # Diccionario de colores
-class_colors = {  
-    'Urban Zones': '#761800',
-    'Industry and Comerciall': '#934741',
-    'Mining': '#4616d4',
-    'Pastures': '#cddc97',
-    'Agricultural Areas': '#dbc382',
-    'Forest': '#3a6a00',
-    'Shrublands and Grassland': '#cafb4d',
-    'Little vegetation areas': '#bfc5b9',
-    'Continental Wetlands': '#6b5c8c',
-    'Continental Waters': '#0127ff'
-}
+class_colors = {
+                "Urban": "#761800",
+                "Industrial and commercial": "#934741",
+                "Mine, dump and construction": "#4616d4",
+                "Artificial non-agricultural vegetated areas": "#A600CC",
+                "Arable Land": "#e8d610",
+                "Permanent crops": "#F2CCAA",
+                "Pastures": "#cddc97",
+                "Forest": "#3a6a00",
+                "Shrub or herbaceous vegetation": "#cafb4d",
+                "Little Vegetated Areas": "#bfc5b9",
+                "Wetlands": "#6b5c8c",
+                "Water bodies": "#0127ff"
+            }
 
 
 
@@ -493,19 +495,18 @@ def change():
 
             # Diccionario de colores
             color_dict = {
-                "1.1 Urban": "#761800",
-                "1.2 Industrial and commercial": "#934741",
-                "1.3 Mine, dump and construction": "#4616d4",
-                "1.4 Artificial non-agricultural vegetated areas": "#A600CC",
-                "2.1 Arable Land": "#e8d610",
-                "2.2 Permanent crops": "#F2CCAA",
+                "Urban": "#761800",
+                "Industrial and commercial": "#934741",
+                "Mine, dump and construction": "#4616d4",
+                "Artificial non-agricultural vegetated areas": "#A600CC",
+                "Arable Land": "#e8d610",
+                "Permanent crops": "#F2CCAA",
                 "Pastures": "#cddc97",
-                "2.4 Shrublands and Grassland": "#dbc382",
                 "Forest": "#3a6a00",
-                "Shrublands and Grassland": "#cafb4d",
-                "3.3 Little Vegetated Areas": "#bfc5b9",
-                "4.1 Wetlands": "#6b5c8c",
-                "5.1 Water bodies": "#0127ff"
+                "Shrub or herbaceous vegetation": "#cafb4d",
+                "Little Vegetated Areas": "#bfc5b9",
+                "Wetlands": "#6b5c8c",
+                "Water bodies": "#0127ff"
             }
             display_labels = [label.split("_", 1)[1] for label in labels]
 
